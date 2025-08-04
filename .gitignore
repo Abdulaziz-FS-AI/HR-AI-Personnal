@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+.next/
+*/.next/
+dist/
+*/dist/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+*/.env
+*/.env.local
+
+# Logs
+*.log
+logs/
+*/logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Azure deployment artifacts
+*.zip
+LogFiles/
+deployments/
+latest-logs/
+newest-logs/
+
+# Cache directories
+.cache/
+*/.cache/ 
+
+# Test coverage
+coverage/
+*/coverage/
