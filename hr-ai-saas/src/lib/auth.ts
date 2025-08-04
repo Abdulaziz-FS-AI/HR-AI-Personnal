@@ -106,12 +106,21 @@ const authConfig = {
             })
           }
           
+          if (!existingUser) {
+            console.error('Failed to create or retrieve user from database')
+            return false
+          }
+          
           // Update user object with database ID
           user.id = existingUser.id
           user.company = existingUser.companyName
           return true
         } catch (error) {
           console.error(`Error creating user from ${account.provider} OAuth:`, error)
+          // Check if it's a table missing error
+          if (error instanceof Error && error.message.includes('Invalid object name \'users\'')) {
+            console.error('Database tables not deployed - please run /api/deploy-schema')
+          }
           return false
         }
       }
