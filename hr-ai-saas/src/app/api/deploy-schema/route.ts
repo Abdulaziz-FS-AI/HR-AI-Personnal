@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
-import { getDbConnection } from "@/lib/db"
+import { executeQueryStrict, checkTablesExist } from "@/lib/db-utils"
 
 export async function POST() {
   try {
-    const pool = await getDbConnection()
+    // Check if tables already exist
+    const existingTables = await checkTablesExist(['users', 'roles', 'role_skills', 'role_questions', 'uploaded_files'])
     
     // Create all tables in the correct order due to foreign key relationships
     const schemas = [
@@ -130,27 +131,22 @@ export async function POST() {
     
     // Execute each schema creation
     for (let i = 0; i < schemas.length; i++) {
-      await pool.request().query(schemas[i])
+      await executeQueryStrict(async (pool) => {
+        return await pool.request().query(schemas[i])
+      })
     }
     
     // Verify all tables were created
-    const tableCheckResult = await pool.request().query(`
-      SELECT TABLE_NAME
-      FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_TYPE = 'BASE_TABLE'
-      AND TABLE_NAME IN ('users', 'roles', 'role_skills', 'role_questions', 'uploaded_files')
-      ORDER BY TABLE_NAME
-    `)
-    
-    const createdTables = tableCheckResult.recordset.map(row => row.TABLE_NAME)
+    const finalTables = await checkTablesExist(['users', 'roles', 'role_skills', 'role_questions', 'uploaded_files'])
     const expectedTables = ['roles', 'role_questions', 'role_skills', 'uploaded_files', 'users']
-    const allTablesCreated = expectedTables.every(table => createdTables.includes(table))
+    const allTablesCreated = expectedTables.every(table => finalTables[table])
 
     return NextResponse.json({
       success: true,
       message: "Complete database schema deployed successfully",
       details: {
-        tablesCreated: createdTables,
+        existingBeforeDeployment: existingTables,
+        finalTableStatus: finalTables,
         allTablesCreated,
         expectedTables,
         timestamp: new Date().toISOString()

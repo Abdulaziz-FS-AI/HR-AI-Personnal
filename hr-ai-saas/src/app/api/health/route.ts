@@ -1,27 +1,31 @@
 import { NextResponse } from "next/server"
-import { getDbConnection } from "@/lib/db"
+import { checkTablesExist, executeQuery } from "@/lib/db-utils"
 
 export async function GET() {
   try {
-    // Test database connection
-    const pool = await getDbConnection()
+    // Test database connection and check tables
+    const tableStatus = await checkTablesExist(['users', 'roles', 'role_skills', 'role_questions', 'uploaded_files'])
     
-    // Test if users table exists
-    const result = await pool.request().query(`
-      SELECT COUNT(*) as tableExists 
-      FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_NAME = 'users'
-    `)
+    if (tableStatus === null) {
+      throw new Error('Database connection failed')
+    }
     
-    const tablesExist = result.recordset[0].tableExists > 0
-    
-    // Close connection
-    await pool.close()
+    // Count existing users (if table exists)
+    let userCount = 0
+    if (tableStatus.users) {
+      const countResult = await executeQuery(async (pool) => {
+        const result = await pool.request().query('SELECT COUNT(*) as count FROM users')
+        return result.recordset[0].count
+      })
+      userCount = countResult || 0
+    }
     
     return NextResponse.json({
       status: "healthy",
       database: "connected",
-      usersTable: tablesExist ? "exists" : "missing",
+      tables: tableStatus,
+      userCount: tableStatus.users ? userCount : "N/A (table missing)",
+      schemaReady: Object.values(tableStatus).every(exists => exists),
       timestamp: new Date().toISOString()
     })
     

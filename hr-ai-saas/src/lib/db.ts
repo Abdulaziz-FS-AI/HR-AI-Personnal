@@ -1,4 +1,5 @@
 import sql from 'mssql'
+import { executeQuery } from './db-utils'
 
 /**
  * Validates that all required database environment variables are present
@@ -63,8 +64,7 @@ export interface User {
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-  try {
-    const pool = await getDbConnection()
+  return await executeQuery(async (pool) => {
     const result = await pool.request()
       .input('email', sql.NVarChar, email)
       .query(`
@@ -76,10 +76,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       `)
     
     return result.recordset[0] || null
-  } catch (error) {
-    console.error('Database error:', error)
-    return null
-  }
+  })
 }
 
 export async function createUser(userData: {
@@ -89,8 +86,7 @@ export async function createUser(userData: {
   firstName?: string
   lastName?: string
 }): Promise<User | null> {
-  try {
-    const pool = await getDbConnection()
+  return await executeQuery(async (pool) => {
     const result = await pool.request()
       .input('email', sql.NVarChar, userData.email)
       .input('passwordHash', sql.NVarChar, userData.passwordHash)
@@ -108,10 +104,7 @@ export async function createUser(userData: {
       `)
     
     return result.recordset[0] || null
-  } catch (error) {
-    console.error('Database error:', error)
-    return null
-  }
+  })
 }
 
 export async function createUserFromOAuth(userData: {
@@ -122,8 +115,7 @@ export async function createUserFromOAuth(userData: {
   microsoftId?: string
   avatar?: string
 }): Promise<User | null> {
-  try {
-    const pool = await getDbConnection()
+  return await executeQuery(async (pool) => {
     const result = await pool.request()
       .input('email', sql.NVarChar, userData.email)
       .input('passwordHash', sql.NVarChar, '') // Empty password for OAuth users
@@ -140,10 +132,7 @@ export async function createUserFromOAuth(userData: {
       `)
     
     return result.recordset[0] || null
-  } catch (error) {
-    console.error('Database error:', error)
-    return null
-  }
+  })
 }
 
 export interface Role {
