@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,42 +34,32 @@ interface AnalyticsData {
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('last-30-days')
   const [selectedRole, setSelectedRole] = useState('all')
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    totalEvaluations: 0,
+    totalResumes: 0,
+    averageProcessingTime: 0,
+    topSkillsInDemand: [],
+    evaluationTrends: [],
+    rolePerformance: [],
+    candidateDistribution: []
+  })
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock analytics data - in real app this would come from an API
-  const analyticsData: AnalyticsData = {
-    totalEvaluations: 24,
-    totalResumes: 485,
-    averageProcessingTime: 3.2,
-    topSkillsInDemand: [
-      { skill: 'React', count: 145, percentage: 85 },
-      { skill: 'JavaScript', count: 132, percentage: 78 },
-      { skill: 'Node.js', count: 98, percentage: 67 },
-      { skill: 'TypeScript', count: 87, percentage: 58 },
-      { skill: 'Python', count: 76, percentage: 52 },
-      { skill: 'AWS', count: 65, percentage: 44 },
-      { skill: 'Docker', count: 54, percentage: 38 }
-    ],
-    evaluationTrends: [
-      { month: 'Oct', evaluations: 8, avgScore: 72 },
-      { month: 'Nov', evaluations: 12, avgScore: 75 },
-      { month: 'Dec', evaluations: 15, avgScore: 78 },
-      { month: 'Jan', evaluations: 24, avgScore: 81 }
-    ],
-    rolePerformance: [
-      { role: 'Frontend Developer', totalCandidates: 125, avgScore: 78, topCandidates: 28 },
-      { role: 'Backend Engineer', totalCandidates: 98, avgScore: 82, topCandidates: 22 },
-      { role: 'Full Stack Developer', totalCandidates: 87, avgScore: 75, topCandidates: 18 },
-      { role: 'DevOps Engineer', totalCandidates: 65, avgScore: 85, topCandidates: 15 },
-      { role: 'Product Manager', totalCandidates: 45, avgScore: 79, topCandidates: 12 }
-    ],
-    candidateDistribution: [
-      { scoreRange: '90-100%', count: 24, percentage: 5 },
-      { scoreRange: '80-89%', count: 97, percentage: 20 },
-      { scoreRange: '70-79%', count: 145, percentage: 30 },
-      { scoreRange: '60-69%', count: 121, percentage: 25 },
-      { scoreRange: '50-59%', count: 73, percentage: 15 },
-      { scoreRange: 'Below 50%', count: 25, percentage: 5 }
-    ]
+  useEffect(() => {
+    fetchAnalytics()
+  }, [timeRange])
+
+  const fetchAnalytics = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/analytics?timeRange=${timeRange}`)
+      const data = await response.json()
+      setAnalyticsData(data)
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -109,11 +99,14 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Evaluations</p>
-                <p className="text-3xl font-bold text-blue-600">{analyticsData.totalEvaluations}</p>
-                <p className="text-xs text-green-600 mt-1">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
-                  +15% from last month
+                <p className="text-3xl font-bold text-blue-600">
+                  {isLoading ? '...' : analyticsData.totalEvaluations}
                 </p>
+                {!isLoading && analyticsData.totalEvaluations > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    In selected time period
+                  </p>
+                )}
               </div>
               <BarChart3 className="w-8 h-8 text-blue-600" />
             </div>
@@ -125,11 +118,14 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Resumes Processed</p>
-                <p className="text-3xl font-bold text-green-600">{analyticsData.totalResumes}</p>
-                <p className="text-xs text-green-600 mt-1">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
-                  +28% from last month
+                <p className="text-3xl font-bold text-green-600">
+                  {isLoading ? '...' : analyticsData.totalResumes}
                 </p>
+                {!isLoading && analyticsData.totalResumes > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    In selected time period
+                  </p>
+                )}
               </div>
               <Users className="w-8 h-8 text-green-600" />
             </div>
@@ -141,11 +137,14 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg Processing Time</p>
-                <p className="text-3xl font-bold text-purple-600">{analyticsData.averageProcessingTime}m</p>
-                <p className="text-xs text-green-600 mt-1">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
-                  12% faster
+                <p className="text-3xl font-bold text-purple-600">
+                  {isLoading ? '...' : `${analyticsData.averageProcessingTime.toFixed(1)}m`}
                 </p>
+                {!isLoading && analyticsData.averageProcessingTime > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Per resume
+                  </p>
+                )}
               </div>
               <Clock className="w-8 h-8 text-purple-600" />
             </div>
@@ -157,11 +156,14 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Top Candidates</p>
-                <p className="text-3xl font-bold text-orange-600">95</p>
-                <p className="text-xs text-green-600 mt-1">
-                  <Award className="w-3 h-3 inline mr-1" />
-                  19% success rate
+                <p className="text-3xl font-bold text-orange-600">
+                  {isLoading ? '...' : analyticsData.rolePerformance.reduce((sum, role) => sum + role.topCandidates, 0)}
                 </p>
+                {!isLoading && analyticsData.totalResumes > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Score ≥ 80%
+                  </p>
+                )}
               </div>
               <Award className="w-8 h-8 text-orange-600" />
             </div>
@@ -291,26 +293,65 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
-              <h4 className="font-semibold text-blue-800 mb-1">Skill Trend Alert</h4>
-              <p className="text-blue-700 text-sm">
-                React and TypeScript skills are highly sought after. Consider creating specialized roles for these technologies.
-              </p>
-            </div>
-            
-            <div className="p-4 bg-green-50 border-l-4 border-green-400 rounded">
-              <h4 className="font-semibold text-green-800 mb-1">Performance Insight</h4>
-              <p className="text-green-700 text-sm">
-                DevOps Engineer roles show the highest average candidate scores (85%). Consider expanding in this area.
-              </p>
-            </div>
-            
-            <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-              <h4 className="font-semibold text-yellow-800 mb-1">Optimization Opportunity</h4>
-              <p className="text-yellow-700 text-sm">
-                25% of candidates score below 60%. Consider refining job requirements or expanding talent sources.
-              </p>
-            </div>
+            {isLoading ? (
+              <p className="text-gray-500">Loading insights...</p>
+            ) : (
+              <>
+                {analyticsData.topSkillsInDemand.length > 0 && (
+                  <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                    <h4 className="font-semibold text-blue-800 mb-1">Top Skills in Demand</h4>
+                    <p className="text-blue-700 text-sm">
+                      {analyticsData.topSkillsInDemand.slice(0, 3).map(s => s.skill).join(', ')} are your most sought-after skills.
+                      {analyticsData.topSkillsInDemand[0]?.percentage > 70 && 
+                        ' Consider creating specialized roles for these high-demand technologies.'}
+                    </p>
+                  </div>
+                )}
+                
+                {analyticsData.rolePerformance.length > 0 && (() => {
+                  const bestRole = analyticsData.rolePerformance.reduce((prev, current) => 
+                    (current.avgScore > prev.avgScore) ? current : prev
+                  )
+                  return (
+                    <div className="p-4 bg-green-50 border-l-4 border-green-400 rounded">
+                      <h4 className="font-semibold text-green-800 mb-1">Best Performing Role</h4>
+                      <p className="text-green-700 text-sm">
+                        {bestRole.role} shows the highest average candidate score ({bestRole.avgScore}%). 
+                        This role attracts quality candidates.
+                      </p>
+                    </div>
+                  )
+                })()}
+                
+                {analyticsData.candidateDistribution.length > 0 && (() => {
+                  const lowScorers = analyticsData.candidateDistribution
+                    .filter(d => d.scoreRange === 'Below 50%' || d.scoreRange === '50-59%')
+                    .reduce((sum, d) => sum + d.percentage, 0)
+                  
+                  if (lowScorers > 20) {
+                    return (
+                      <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                        <h4 className="font-semibold text-yellow-800 mb-1">Optimization Opportunity</h4>
+                        <p className="text-yellow-700 text-sm">
+                          {lowScorers}% of candidates score below 60%. Consider refining job requirements 
+                          or expanding talent acquisition channels.
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
+                
+                {analyticsData.totalEvaluations === 0 && (
+                  <div className="p-4 bg-gray-50 border-l-4 border-gray-400 rounded">
+                    <h4 className="font-semibold text-gray-800 mb-1">Get Started</h4>
+                    <p className="text-gray-700 text-sm">
+                      Start by creating job roles and uploading resumes to see analytics insights.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

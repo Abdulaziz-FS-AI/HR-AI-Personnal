@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -31,12 +31,13 @@ import {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile')
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@company.com',
-    company: 'Tech Solutions Inc.',
-    phone: '+1 (555) 123-4567',
+    firstName: '',
+    lastName: '',
+    email: '',
+    company: '',
+    phone: '',
     timezone: 'America/New_York',
     notifications: {
       email: true,
@@ -51,6 +52,45 @@ export default function SettingsPage() {
       thirdPartyIntegrations: true
     }
   })
+  const [billingData, setBillingData] = useState({
+    subscriptionTier: 'free',
+    creditsUsed: 0,
+    creditsTotal: 10,
+    memberSince: new Date()
+  })
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/user/settings')
+      const data = await response.json()
+      
+      if (data.profile) {
+        setFormData({
+          firstName: data.profile.firstName,
+          lastName: data.profile.lastName,
+          email: data.profile.email,
+          company: data.profile.company,
+          phone: data.profile.phone,
+          timezone: data.profile.timezone,
+          notifications: data.notifications,
+          privacy: data.privacy
+        })
+      }
+      
+      if (data.billing) {
+        setBillingData(data.billing)
+      }
+    } catch (error) {
+      console.error('Failed to fetch settings:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -62,9 +102,34 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setIsSaving(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsSaving(false)
+    try {
+      const response = await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profile: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            company: formData.company,
+            phone: formData.phone,
+            timezone: formData.timezone
+          },
+          notifications: formData.notifications,
+          privacy: formData.privacy
+        })
+      })
+      
+      if (!response.ok) throw new Error('Failed to save settings')
+      
+      // Refresh settings
+      await fetchSettings()
+    } catch (error) {
+      console.error('Failed to save settings:', error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleInputChange = (field: string, value: any) => {
@@ -141,6 +206,8 @@ export default function SettingsPage() {
                       id="firstName"
                       value={formData.firstName}
                       onChange={(e) => handleInputChange('firstName', e.target.value)}
+                      disabled={isLoading}
+                      placeholder={isLoading ? "Loading..." : "Enter first name"}
                     />
                   </div>
                   <div>
@@ -230,12 +297,23 @@ export default function SettingsPage() {
                     <div className="flex items-center space-x-3">
                       <Crown className="w-8 h-8 text-yellow-500" />
                       <div>
-                        <h3 className="font-semibold">Professional Plan</h3>
-                        <p className="text-sm text-gray-600">Up to 500 evaluations per month</p>
+                        <h3 className="font-semibold">
+                          {billingData.subscriptionTier === 'free' ? 'Free Plan' : 
+                           billingData.subscriptionTier === 'professional' ? 'Professional Plan' : 
+                           'Enterprise Plan'}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {billingData.creditsTotal} evaluations per month
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold">$49<span className="text-sm font-normal text-gray-600">/month</span></p>
+                      <p className="text-2xl font-bold">
+                        {billingData.subscriptionTier === 'free' ? '$0' : 
+                         billingData.subscriptionTier === 'professional' ? '$49' : 
+                         'Custom'}
+                        <span className="text-sm font-normal text-gray-600">/month</span>
+                      </p>
                       <Badge variant="secondary">Active</Badge>
                     </div>
                   </div>
@@ -243,15 +321,15 @@ export default function SettingsPage() {
                   <div className="mt-4 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Credits Used This Month:</span>
-                      <span>247 / 500</span>
+                      <span>{billingData.creditsUsed} / {billingData.creditsTotal}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Billing Cycle:</span>
                       <span>Monthly</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Next Billing Date:</span>
-                      <span>February 15, 2024</span>
+                      <span>Member Since:</span>
+                      <span>{new Date(billingData.memberSince).toLocaleDateString()}</span>
                     </div>
                   </div>
 
@@ -271,8 +349,8 @@ export default function SettingsPage() {
                     <div className="flex items-center space-x-3">
                       <CreditCard className="w-6 h-6 text-gray-400" />
                       <div>
-                        <p className="font-medium">•••• •••• •••• 4242</p>
-                        <p className="text-sm text-gray-600">Expires 12/25</p>
+                        <p className="font-medium">No payment method on file</p>
+                        <p className="text-sm text-gray-600">Add a payment method to upgrade</p>
                       </div>
                     </div>
                     <Button variant="outline" size="sm">
@@ -477,7 +555,7 @@ export default function SettingsPage() {
                   <Label>Production API Key</Label>
                   <div className="flex space-x-2 mt-2">
                     <Input 
-                      value="hr_live_ck_test_4WS1aXnHdD7d1ZdVfFaFPdgOyRISsmqf" 
+                      value="hr_live_**************************" 
                       readOnly 
                       className="font-mono text-sm"
                     />
@@ -493,7 +571,7 @@ export default function SettingsPage() {
                   <Label>Test API Key</Label>
                   <div className="flex space-x-2 mt-2">
                     <Input 
-                      value="hr_test_ck_test_7YT2bZoIdE8e2AeWgGbGQehPzRJTtmrg" 
+                      value="hr_test_**************************" 
                       readOnly 
                       className="font-mono text-sm"
                     />
@@ -511,7 +589,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <Label>Evaluation Complete</Label>
-                        <p className="text-sm text-gray-600">https://api.yourcompany.com/webhooks/evaluation</p>
+                        <p className="text-sm text-gray-600">Not configured</p>
                       </div>
                       <Badge variant="secondary">Active</Badge>
                     </div>
