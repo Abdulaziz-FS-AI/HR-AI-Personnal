@@ -15,7 +15,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {session.user?.name}
+          Welcome back{session.user?.name ? `, ${session.user.name}` : ''}!
         </h1>
         <p className="text-gray-600">
           Ready to screen some resumes with AI?
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/dashboard/roles/create">
+            <Link href="/roles/create">
               <Button className="w-full">
                 Create Role
               </Button>
@@ -47,9 +47,9 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/dashboard/evaluations/create">
+            <Link href="/resumes/upload">
               <Button className="w-full">
-                Start Evaluation
+                Upload Resumes
               </Button>
             </Link>
           </CardContent>
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/dashboard/evaluations">
+            <Link href="/evaluations">
               <Button className="w-full" variant="outline">
                 View Evaluations
               </Button>

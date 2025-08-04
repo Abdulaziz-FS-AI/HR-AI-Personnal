@@ -86,6 +86,7 @@ const authConfig = {
   pages: {
     signIn: "/login",
     signUp: "/register",
+    error: "/login",
   },
   callbacks: {
     async signIn({ user, account }: { user: any; account: any }) {
