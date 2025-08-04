@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -42,42 +42,26 @@ export default function EvaluationsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('recent')
+  const [evaluations, setEvaluations] = useState<EvaluationSession[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock data - in real app this would come from an API
-  const [evaluations] = useState<EvaluationSession[]>([
-    {
-      id: '1',
-      name: 'Frontend Developer Screening',
-      roleTitle: 'Senior React Developer',
-      status: 'completed',
-      createdAt: '2024-01-15T10:30:00Z',
-      completedAt: '2024-01-15T11:45:00Z',
-      totalResumes: 25,
-      processedResumes: 25,
-      averageScore: 78,
-      topCandidates: 8
-    },
-    {
-      id: '2', 
-      name: 'Backend Engineer Analysis',
-      roleTitle: 'Node.js Backend Engineer',
-      status: 'running',
-      createdAt: '2024-01-16T09:15:00Z',
-      totalResumes: 40,
-      processedResumes: 23,
-      topCandidates: 5
-    },
-    {
-      id: '3',
-      name: 'Marketing Manager Search',
-      roleTitle: 'Digital Marketing Manager',
-      status: 'failed',
-      createdAt: '2024-01-14T14:20:00Z',
-      totalResumes: 15,
-      processedResumes: 8,
-      topCandidates: 0
+  useEffect(() => {
+    fetchEvaluations()
+  }, [])
+
+  const fetchEvaluations = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/evaluations')
+      const data = await response.json()
+      setEvaluations(data.evaluations || [])
+    } catch (error) {
+      console.error('Failed to fetch evaluations:', error)
+      setEvaluations([])
+    } finally {
+      setIsLoading(false)
     }
-  ])
+  }
 
   const getStatusBadge = (status: EvaluationSession['status']) => {
     switch (status) {
@@ -224,7 +208,14 @@ export default function EvaluationsPage() {
 
       {/* Evaluations List */}
       <div className="space-y-4">
-        {filteredEvaluations.length === 0 ? (
+        {isLoading ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Loader2 className="w-12 h-12 text-gray-400 mx-auto mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading evaluations...</h3>
+            </CardContent>
+          </Card>
+        ) : filteredEvaluations.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -282,7 +273,11 @@ export default function EvaluationsPage() {
                   
                   <div className="flex items-center space-x-2 ml-4">
                     {evaluation.status === 'running' && (
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => fetchEvaluations()}
+                      >
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Refresh
                       </Button>
