@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getDbConnection } from "@/lib/db-config"
+import { getDbConnection } from "@/lib/db"
 
 export async function POST() {
   try {
@@ -9,20 +9,25 @@ export async function POST() {
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='users' AND xtype='U')
       CREATE TABLE users (
-        id NVARCHAR(50) PRIMARY KEY DEFAULT NEWID(),
+        id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         email NVARCHAR(255) UNIQUE NOT NULL,
         password_hash NVARCHAR(255) NOT NULL,
         company_name NVARCHAR(255) NULL,
         first_name NVARCHAR(100) NULL,
         last_name NVARCHAR(100) NULL,
-        credits_remaining INT DEFAULT 1000,
-        created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+        subscription_tier NVARCHAR(50) DEFAULT 'basic',
+        credits_remaining INT DEFAULT 10,
+        created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
         updated_at DATETIME2 NULL,
-        
-        -- Indexes for performance
-        INDEX IX_users_email (email),
-        INDEX IX_users_company (company_name)
-      )
+        is_active BIT DEFAULT 1
+      );
+      
+      -- Create indexes if they don't exist
+      IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = 'IX_users_email')
+        CREATE INDEX IX_users_email ON users (email);
+      
+      IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = 'IX_users_company')
+        CREATE INDEX IX_users_company ON users (company_name);
     `)
 
     // Verify table creation
