@@ -37,35 +37,15 @@ const config = {
   },
 }
 
-let pool: sql.ConnectionPool | null = null
-
+// Serverless-compatible connection function (no global pooling)
 export async function getDbConnection() {
   try {
-    // If no pool exists or connection is closed, create a new one
-    if (!pool || !pool.connected) {
-      if (pool) {
-        try {
-          await pool.close()
-        } catch (error) {
-          console.log('Error closing old pool:', error)
-        }
-      }
-      
-      pool = new sql.ConnectionPool(config)
-      await pool.connect()
-      
-      // Handle connection errors
-      pool.on('error', (err) => {
-        console.error('Database pool error:', err)
-        pool = null
-      })
-    }
-    
+    const pool = new sql.ConnectionPool(config)
+    await pool.connect()
     return pool
   } catch (error) {
     console.error('Database connection error:', error)
-    pool = null
-    throw error
+    throw new Error(`Failed to connect to Azure SQL Database: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

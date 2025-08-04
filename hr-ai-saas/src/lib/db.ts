@@ -37,14 +37,16 @@ const config = {
   },
 }
 
-let pool: sql.ConnectionPool | null = null
-
+// Serverless-compatible connection function (no global pooling)
 export async function getDbConnection() {
-  if (!pool) {
-    pool = new sql.ConnectionPool(config)
+  try {
+    const pool = new sql.ConnectionPool(config)
     await pool.connect()
+    return pool
+  } catch (error) {
+    console.error('Database connection failed:', error)
+    throw new Error(`Failed to connect to Azure SQL Database: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
-  return pool
 }
 
 export interface User {
