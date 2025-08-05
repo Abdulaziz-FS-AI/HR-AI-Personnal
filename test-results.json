@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-08-02T08:17:36.647Z",
+  "totalTests": 5,
+  "passedTests": 4,
+  "failedTests": 1,
+  "testSuites": [
+    {
+      "name": "Health Check Tests",
+      "status": "PASSED",
+      "critical": true,
+      "output": "Tests completed successfully"
+    },
+    {
+      "name": "Component Tests",
+      "status": "PASSED",
+      "critical": true,
+      "output": "Tests completed successfully"
+    },
+    {
+      "name": "Integration Tests",
+      "status": "PASSED",
+      "critical": false,
+      "output": "Tests completed successfully"
+    },
+    {
+      "name": "Database Tests",
+      "status": "PASSED",
+      "critical": false,
+      "output": "Tests completed successfully"
+    },
+    {
+      "name": "API Tests",
+      "status": "FAILED",
+      "critical": false,
+      "error": "Command failed: npm run test:api\n ⚠ Warning: Found multiple lockfiles. Selecting /Users/abdulaziz.f/package-lock.json.\n   Consider removing the lockfiles at:\n   * /Users/abdulaziz.f/Desktop/abdulaziz/2nd project/HR-AI-747/hr-ai-saas/package-lock.json\n\nFAIL __tests__/api/auth.test.ts\n  ● Test suite failed to run\n\n    ReferenceError: Request is not defined\n\n       9 |\n      10 |     // Validation\n    > 11 |     if (!email || !password || !firstName || !lastName || !companyName) {\n         |                 ^\n      12 |       return NextResponse.json(\n      13 |         { message: \"All fields are required\" },\n      14 |         { status: 400 }\n\n      at Object.Request (node_modules/next/src/server/web/spec-extension/request.ts:14:34)\n      at Object.<anonymous> (node_modules/next/server.js:2:16)\n      at Object.<anonymous> (src/app/api/auth/register/route.ts:11:17)\n      at Object.<anonymous> (__tests__/api/auth.test.ts:14:16)\n\nTest Suites: 1 failed, 1 total\nTests:       0 total\nSnapshots:   0 total\nTime:        0.325 s\nRan all test suites matching __tests__/api.\n"
+    }
+  ],
+  "coverage": null,
+  "duration": 7581
+}

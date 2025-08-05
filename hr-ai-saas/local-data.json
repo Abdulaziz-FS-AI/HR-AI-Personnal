@@ -1,0 +1,25 @@
+{
+  "users": [
+    {
+      "id": "n5m095zcp0bmdwmhgnv",
+      "email": "abdulaziz.fs.ai@gmail.com",
+      "passwordHash": "$2b$12$T.IjLWNtv7i9dz44iVQn8.2QOUzQA7.A8AFmGhmmwnHuwMqnf0Vp.",
+      "firstName": "abdulaziz",
+      "lastName": "saeed",
+      "companyName": "KFUPM",
+      "creditsRemaining": 1000,
+      "createdAt": "2025-08-04T04:41:04.411Z"
+    },
+    {
+      "id": "j76w6v796vrmdwmjftc",
+      "email": "Abdulaziz747uni@gmail.com",
+      "passwordHash": "$2b$12$6BqU.0ej7x03LNpruRFC5ewp3q.cZNQN8/5GPU3rViIYYDtjXvkD6",
+      "firstName": "Abdulaziz",
+      "lastName": "Saeed",
+      "companyName": "KFUPM",
+      "creditsRemaining": 1000,
+      "createdAt": "2025-08-04T04:42:36.624Z"
+    }
+  ],
+  "roles": []
+}
