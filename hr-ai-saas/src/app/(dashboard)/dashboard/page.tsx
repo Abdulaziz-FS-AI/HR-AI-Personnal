@@ -3,12 +3,63 @@ import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { getUserByEmail, getRolesByUserId } from "@/lib/db"
+import { getDbConnection } from "@/lib/db"
+import sql from 'mssql'
 
 export default async function DashboardPage() {
   const session = await auth()
 
   if (!session) {
     redirect("/login")
+  }
+
+  // Fetch real dashboard data
+  let dashboardStats = {
+    creditsRemaining: 0,
+    totalEvaluations: 0,
+    resumesProcessed: 0,
+    totalRoles: 0,
+    hasCreatedRole: false
+  }
+
+  try {
+    // Get user data for credits
+    if (session.user?.email) {
+      const user = await getUserByEmail(session.user.email)
+      if (user) {
+        dashboardStats.creditsRemaining = user.creditsRemaining
+      }
+    }
+
+    // Get roles count
+    if (session.user?.id) {
+      const roles = await getRolesByUserId(session.user.id)
+      dashboardStats.totalRoles = roles.length
+      dashboardStats.hasCreatedRole = roles.length > 0
+    }
+
+    // Get evaluation stats
+    const pool = await getDbConnection()
+    const evaluationStatsResult = await pool.request()
+      .input('userId', sql.NVarChar, session.user.id)
+      .query(`
+        SELECT 
+          COUNT(*) as totalEvaluations,
+          ISNULL(SUM(total_files), 0) as resumesProcessed
+        FROM evaluation_sessions 
+        WHERE user_id = @userId
+      `)
+    
+    if (evaluationStatsResult.recordset[0]) {
+      dashboardStats.totalEvaluations = evaluationStatsResult.recordset[0].totalEvaluations
+      dashboardStats.resumesProcessed = evaluationStatsResult.recordset[0].resumesProcessed
+    }
+
+    await pool.close()
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error)
+    // Use defaults on error
   }
 
   return (
@@ -81,15 +132,15 @@ export default async function DashboardPage() {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Credits Remaining</span>
-                <span className="font-semibold">10</span>
+                <span className="font-semibold">{dashboardStats.creditsRemaining}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Total Evaluations</span>
-                <span className="font-semibold">0</span>
+                <span className="font-semibold">{dashboardStats.totalEvaluations}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Resumes Processed</span>
-                <span className="font-semibold">0</span>
+                <span className="font-semibold">{dashboardStats.resumesProcessed}</span>
               </div>
             </div>
           </CardContent>
@@ -106,12 +157,16 @@ export default async function DashboardPage() {
                 <span className="text-sm">Account created</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
-                <span className="text-sm text-gray-600">Create your first job role</span>
+                <div className={`w-2 h-2 rounded-full ${dashboardStats.hasCreatedRole ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <span className={`text-sm ${dashboardStats.hasCreatedRole ? 'text-gray-900' : 'text-gray-600'}`}>
+                  {dashboardStats.hasCreatedRole ? `Created ${dashboardStats.totalRoles} job role${dashboardStats.totalRoles !== 1 ? 's' : ''}` : 'Create your first job role'}
+                </span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
-                <span className="text-sm text-gray-600">Start evaluation with resumes</span>
+                <div className={`w-2 h-2 rounded-full ${dashboardStats.totalEvaluations > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <span className={`text-sm ${dashboardStats.totalEvaluations > 0 ? 'text-gray-900' : 'text-gray-600'}`}>
+                  {dashboardStats.totalEvaluations > 0 ? `Completed ${dashboardStats.totalEvaluations} evaluation${dashboardStats.totalEvaluations !== 1 ? 's' : ''}` : 'Start evaluation with resumes'}
+                </span>
               </div>
             </div>
           </CardContent>

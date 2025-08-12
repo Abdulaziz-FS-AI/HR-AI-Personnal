@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,43 +34,48 @@ interface AnalyticsData {
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('last-30-days')
   const [selectedRole, setSelectedRole] = useState('all')
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
+    totalEvaluations: 0,
+    totalResumes: 0,
+    averageProcessingTime: 0,
+    topSkillsInDemand: [],
+    evaluationTrends: [],
+    rolePerformance: [],
+    candidateDistribution: []
+  })
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock analytics data - in real app this would come from an API
-  const analyticsData: AnalyticsData = {
-    totalEvaluations: 24,
-    totalResumes: 485,
-    averageProcessingTime: 3.2,
-    topSkillsInDemand: [
-      { skill: 'React', count: 145, percentage: 85 },
-      { skill: 'JavaScript', count: 132, percentage: 78 },
-      { skill: 'Node.js', count: 98, percentage: 67 },
-      { skill: 'TypeScript', count: 87, percentage: 58 },
-      { skill: 'Python', count: 76, percentage: 52 },
-      { skill: 'AWS', count: 65, percentage: 44 },
-      { skill: 'Docker', count: 54, percentage: 38 }
-    ],
-    evaluationTrends: [
-      { month: 'Oct', evaluations: 8, avgScore: 72 },
-      { month: 'Nov', evaluations: 12, avgScore: 75 },
-      { month: 'Dec', evaluations: 15, avgScore: 78 },
-      { month: 'Jan', evaluations: 24, avgScore: 81 }
-    ],
-    rolePerformance: [
-      { role: 'Frontend Developer', totalCandidates: 125, avgScore: 78, topCandidates: 28 },
-      { role: 'Backend Engineer', totalCandidates: 98, avgScore: 82, topCandidates: 22 },
-      { role: 'Full Stack Developer', totalCandidates: 87, avgScore: 75, topCandidates: 18 },
-      { role: 'DevOps Engineer', totalCandidates: 65, avgScore: 85, topCandidates: 15 },
-      { role: 'Product Manager', totalCandidates: 45, avgScore: 79, topCandidates: 12 }
-    ],
-    candidateDistribution: [
-      { scoreRange: '90-100%', count: 24, percentage: 5 },
-      { scoreRange: '80-89%', count: 97, percentage: 20 },
-      { scoreRange: '70-79%', count: 145, percentage: 30 },
-      { scoreRange: '60-69%', count: 121, percentage: 25 },
-      { scoreRange: '50-59%', count: 73, percentage: 15 },
-      { scoreRange: 'Below 50%', count: 25, percentage: 5 }
-    ]
+  useEffect(() => {
+    fetchAnalyticsData()
+  }, [timeRange, selectedRole])
+
+  const fetchAnalyticsData = async () => {
+    setIsLoading(true)
+    try {
+      // In a real implementation, this would fetch from analytics API
+      // For now, we'll leave it empty for new users
+      const response = await fetch(`/api/analytics?timeRange=${timeRange}&role=${selectedRole}`)
+      if (response.ok) {
+        const data = await response.json()
+        setAnalyticsData(data.data || {
+          totalEvaluations: 0,
+          totalResumes: 0,
+          averageProcessingTime: 0,
+          topSkillsInDemand: [],
+          evaluationTrends: [],
+          rolePerformance: [],
+          candidateDistribution: []
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error)
+      // Keep empty state on error
+    } finally {
+      setIsLoading(false)
+    }
   }
+
+  const hasData = analyticsData.totalEvaluations > 0
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -102,7 +107,26 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Key Metrics */}
+      {/* Empty State */}
+      {!hasData ? (
+        <div className="text-center py-16">
+          <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Analytics Data Yet</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            Complete your first evaluation to see insights and trends from your hiring process.
+          </p>
+          <div className="space-x-3">
+            <Button asChild>
+              <a href="/roles/create">Create Job Role</a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a href="/evaluations/create">Start Evaluation</a>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -110,10 +134,12 @@ export default function AnalyticsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Evaluations</p>
                 <p className="text-3xl font-bold text-blue-600">{analyticsData.totalEvaluations}</p>
-                <p className="text-xs text-green-600 mt-1">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
-                  +15% from last month
-                </p>
+                {analyticsData.totalEvaluations > 0 && (
+                  <p className="text-xs text-green-600 mt-1">
+                    <TrendingUp className="w-3 h-3 inline mr-1" />
+                    +15% from last month
+                  </p>
+                )}
               </div>
               <BarChart3 className="w-8 h-8 text-blue-600" />
             </div>
@@ -126,10 +152,12 @@ export default function AnalyticsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Resumes Processed</p>
                 <p className="text-3xl font-bold text-green-600">{analyticsData.totalResumes}</p>
-                <p className="text-xs text-green-600 mt-1">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
-                  +28% from last month
-                </p>
+                {analyticsData.totalResumes > 0 && (
+                  <p className="text-xs text-green-600 mt-1">
+                    <TrendingUp className="w-3 h-3 inline mr-1" />
+                    +28% from last month
+                  </p>
+                )}
               </div>
               <Users className="w-8 h-8 text-green-600" />
             </div>
@@ -314,6 +342,8 @@ export default function AnalyticsPage() {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   )
 }

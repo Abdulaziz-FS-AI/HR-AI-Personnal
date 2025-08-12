@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -29,14 +30,16 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
+  const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState('profile')
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [formData, setFormData] = useState({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@company.com',
-    company: 'Tech Solutions Inc.',
-    phone: '+1 (555) 123-4567',
+    firstName: '',
+    lastName: '',
+    email: '',
+    company: '',
+    phone: '',
     timezone: 'America/New_York',
     notifications: {
       email: true,
@@ -51,6 +54,19 @@ export default function SettingsPage() {
       thirdPartyIntegrations: true
     }
   })
+
+  useEffect(() => {
+    if (session?.user) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: session.user.name?.split(' ')[0] || '',
+        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+        email: session.user.email || '',
+        company: (session.user as any).company || ''
+      }))
+      setIsLoading(false)
+    }
+  }, [session])
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
