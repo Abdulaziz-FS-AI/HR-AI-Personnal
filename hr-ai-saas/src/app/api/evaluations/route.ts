@@ -1,75 +1,103 @@
-import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { executeQuery } from '@/lib/db-utils'
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { 
+  createEvaluationSession, 
+  getUserEvaluationSessions,
+  getEvaluationSession 
+} from '@/lib/db-evaluations'
 
-export async function GET(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const session = await auth()
+    const session = await getServerSession(authOptions)
+    
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
-
-    const evaluations = await executeQuery(async (pool) => {
-      const result = await pool.request()
-        .input('userId', session.user.id)
-        .query(`
-          SELECT 
-            bs.id,
-            bs.session_name as name,
-            r.title as roleTitle,
-            bs.status,
-            bs.created_at as createdAt,
-            bs.updated_at as completedAt,
-            bs.total_files as totalResumes,
-            bs.processed_files as processedResumes,
-            COALESCE(
-              (SELECT AVG(overall_score) 
-               FROM resume_analysis_results 
-               WHERE batch_session_id = bs.id), 
-              0
-            ) as averageScore,
-            COALESCE(
-              (SELECT COUNT(*) 
-               FROM resume_analysis_results 
-               WHERE batch_session_id = bs.id 
-               AND overall_score >= 80), 
-              0
-            ) as topCandidates
-          FROM batch_sessions bs
-          LEFT JOIN roles r ON bs.role_id = r.id
-          WHERE bs.user_id = @userId
-          ORDER BY bs.created_at DESC
-        `)
-      
-      return result.recordset.map(session => ({
-        ...session,
-        averageScore: Math.round(session.averageScore || 0),
-        status: mapStatus(session.status)
-      }))
+    
+    const body = await req.json()
+    const { name, description, roleId } = body
+    
+    if (!name || !roleId) {
+      return NextResponse.json(
+        { error: 'Name and roleId are required' },
+        { status: 400 }
+      )
+    }
+    
+    // Create evaluation session
+    const evaluation = await createEvaluationSession({
+      userId: session.user.id,
+      roleId,
+      name,
+      description
     })
-
-    return NextResponse.json({ evaluations: evaluations || [] })
+    
+    if (!evaluation) {
+      return NextResponse.json(
+        { error: 'Failed to create evaluation' },
+        { status: 500 }
+      )
+    }
+    
+    return NextResponse.json({
+      success: true,
+      evaluation
+    })
   } catch (error) {
-    console.error('Evaluations fetch error:', error)
+    console.error('Error creating evaluation:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch evaluations', evaluations: [] },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
 }
 
-function mapStatus(dbStatus: string): 'running' | 'completed' | 'failed' | 'pending' {
-  switch (dbStatus?.toLowerCase()) {
-    case 'processing':
-      return 'running'
-    case 'completed':
-      return 'completed'
-    case 'failed':
-      return 'failed'
-    case 'pending':
-    case 'created':
-      return 'pending'
-    default:
-      return 'pending'
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+    
+    // Get specific evaluation or all user's evaluations
+    const { searchParams } = new URL(req.url)
+    const evaluationId = searchParams.get('id')
+    
+    if (evaluationId) {
+      const evaluation = await getEvaluationSession(evaluationId, session.user.id)
+      
+      if (!evaluation) {
+        return NextResponse.json(
+          { error: 'Evaluation not found' },
+          { status: 404 }
+        )
+      }
+      
+      return NextResponse.json({
+        success: true,
+        evaluation
+      })
+    } else {
+      const evaluations = await getUserEvaluationSessions(session.user.id)
+      
+      return NextResponse.json({
+        success: true,
+        evaluations
+      })
+    }
+  } catch (error) {
+    console.error('Error fetching evaluations:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

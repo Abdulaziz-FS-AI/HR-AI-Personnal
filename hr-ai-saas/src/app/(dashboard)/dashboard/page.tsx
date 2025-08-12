@@ -3,28 +3,12 @@ import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { getUserDashboardStats } from "@/lib/db-dashboard"
 
 export default async function DashboardPage() {
   const session = await auth()
 
   if (!session) {
     redirect("/login")
-  }
-
-  // Fetch real user statistics
-  const stats = await getUserDashboardStats(session.user?.id || '')
-  
-  // Default values if stats fetch fails
-  const dashboardData = stats || {
-    creditsRemaining: 0,
-    totalEvaluations: 0,
-    resumesProcessed: 0,
-    completedSteps: {
-      accountCreated: true,
-      firstRoleCreated: false,
-      firstAnalysisCompleted: false
-    }
   }
 
   return (
@@ -97,15 +81,15 @@ export default async function DashboardPage() {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Credits Remaining</span>
-                <span className="font-semibold">{dashboardData.creditsRemaining}</span>
+                <span className="font-semibold">10</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Total Evaluations</span>
-                <span className="font-semibold">{dashboardData.totalEvaluations}</span>
+                <span className="font-semibold">0</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">Resumes Processed</span>
-                <span className="font-semibold">{dashboardData.resumesProcessed}</span>
+                <span className="font-semibold">0</span>
               </div>
             </div>
           </CardContent>
@@ -122,16 +106,12 @@ export default async function DashboardPage() {
                 <span className="text-sm">Account created</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 ${dashboardData.completedSteps.firstRoleCreated ? 'bg-green-500' : 'bg-gray-300'} rounded-full`}></div>
-                <span className={`text-sm ${dashboardData.completedSteps.firstRoleCreated ? '' : 'text-gray-600'}`}>
-                  {dashboardData.completedSteps.firstRoleCreated ? 'First job role created' : 'Create your first job role'}
-                </span>
+                <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                <span className="text-sm text-gray-600">Create your first job role</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 ${dashboardData.completedSteps.firstAnalysisCompleted ? 'bg-green-500' : 'bg-gray-300'} rounded-full`}></div>
-                <span className={`text-sm ${dashboardData.completedSteps.firstAnalysisCompleted ? '' : 'text-gray-600'}`}>
-                  {dashboardData.completedSteps.firstAnalysisCompleted ? 'Resume analysis completed' : 'Upload and analyze resumes'}
-                </span>
+                <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+                <span className="text-sm text-gray-600">Upload and analyze resumes</span>
               </div>
             </div>
           </CardContent>

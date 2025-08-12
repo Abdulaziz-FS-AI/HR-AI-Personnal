@@ -1,50 +1,82 @@
 import sql from 'mssql'
+import { getAzureConfig } from './azure-config'
+
+let dbConfig: any = null;
 
 /**
- * Validates that all required database environment variables are present
- * @throws {Error} If any required environment variable is missing
+ * Loads database configuration from Azure App Configuration or environment variables
  */
-function validateDatabaseConfig() {
-  const required = [
-    'AZURE_SQL_SERVER',
-    'AZURE_SQL_DATABASE',
-    'AZURE_SQL_USER', 
-    'AZURE_SQL_PASSWORD'
-  ]
-  
-  const missing = required.filter(env => !process.env[env])
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required database environment variables: ${missing.join(', ')}\n` +
-      'Please ensure all database credentials are properly configured in your environment.'
-    )
+async function loadDatabaseConfig() {
+  if (dbConfig) return dbConfig;
+
+  try {
+    // Try to load from Azure App Configuration first
+    console.log('Loading database configuration from Azure App Configuration...');
+    const azureConfig = await getAzureConfig();
+    
+    dbConfig = {
+      server: azureConfig.AZURE_SQL_SERVER || process.env.AZURE_SQL_SERVER,
+      database: azureConfig.AZURE_SQL_DATABASE || process.env.AZURE_SQL_DATABASE,
+      user: azureConfig.AZURE_SQL_USER || process.env.AZURE_SQL_USER,
+      password: azureConfig.AZURE_SQL_PASSWORD || process.env.AZURE_SQL_PASSWORD,
+      options: {
+        encrypt: true,
+        trustServerCertificate: false,
+        connectionTimeout: 30000,
+        requestTimeout: 30000,
+      },
+    };
+
+    console.log('Database configuration loaded successfully');
+  } catch (error) {
+    console.warn('Failed to load Azure App Configuration, falling back to environment variables:', error);
+    
+    // Fallback to environment variables
+    dbConfig = {
+      server: process.env.AZURE_SQL_SERVER,
+      database: process.env.AZURE_SQL_DATABASE,
+      user: process.env.AZURE_SQL_USER,
+      password: process.env.AZURE_SQL_PASSWORD,
+      options: {
+        encrypt: true,
+        trustServerCertificate: false,
+        connectionTimeout: 30000,
+        requestTimeout: 30000,
+      },
+    };
   }
+
+  // Validate configuration
+  validateDatabaseConfig(dbConfig);
+  return dbConfig;
 }
 
-// Validate configuration on module load
-validateDatabaseConfig()
-
-const config = {
-  server: process.env.AZURE_SQL_SERVER!,
-  database: process.env.AZURE_SQL_DATABASE!,
-  user: process.env.AZURE_SQL_USER!,
-  password: process.env.AZURE_SQL_PASSWORD!,
-  options: {
-    encrypt: true,
-    trustServerCertificate: false,
-    connectionTimeout: 30000,
-    requestTimeout: 30000,
-  },
+/**
+ * Validates that all required database configuration is present
+ * @throws {Error} If any required configuration is missing
+ */
+function validateDatabaseConfig(config: any) {
+  const required = ['server', 'database', 'user', 'password'];
+  const missing = required.filter(field => !config[field]);
+  
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required database configuration: ${missing.join(', ')}\n` +
+      'Please ensure all database credentials are properly configured in Azure App Configuration or environment variables.'
+    );
+  }
 }
 
 let pool: sql.ConnectionPool | null = null
 
 export async function getDbConnection() {
   if (!pool) {
-    pool = new sql.ConnectionPool(config)
-    await pool.connect()
+    const config = await loadDatabaseConfig();
+    pool = new sql.ConnectionPool(config);
+    await pool.connect();
+    console.log('Database connection established');
   }
-  return pool
+  return pool;
 }
 
 export interface User {

@@ -21,10 +21,11 @@ interface FileUploadInfo {
 
 interface FileUploadManagerProps {
   roleId?: string
-  onUploadComplete?: () => void
+  evaluationId?: string
+  onUploadComplete?: (files?: any[]) => void
 }
 
-export function FileUploadManager({ roleId, onUploadComplete }: FileUploadManagerProps) {
+export function FileUploadManager({ roleId, evaluationId, onUploadComplete }: FileUploadManagerProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [fileUploads, setFileUploads] = useState<FileUploadInfo[]>([])
   const [isUploading, setIsUploading] = useState(false)
@@ -93,6 +94,29 @@ export function FileUploadManager({ roleId, onUploadComplete }: FileUploadManage
 
       if (completedFiles.length > 0) {
         await completeUploadSession(data.session.sessionToken, completedFiles)
+        
+        // If evaluationId is provided, add files to evaluation
+        if (evaluationId) {
+          try {
+            const evaluationResponse = await fetch(`/api/evaluations/${evaluationId}/files`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                files: completedFiles.map(f => ({
+                  fileName: uploadInfos.find(u => u.fileId === f.fileId)?.file.name || '',
+                  blobName: f.blobName,
+                  fileSize: uploadInfos.find(u => u.fileId === f.fileId)?.file.size || 0
+                }))
+              })
+            })
+            
+            if (!evaluationResponse.ok) {
+              console.error('Failed to add files to evaluation')
+            }
+          } catch (error) {
+            console.error('Error adding files to evaluation:', error)
+          }
+        }
       }
 
       // Show completion toast
@@ -115,7 +139,13 @@ export function FileUploadManager({ roleId, onUploadComplete }: FileUploadManage
       }
 
       if (onUploadComplete) {
-        onUploadComplete()
+        const uploadedFilesData = completedFiles.map(f => ({
+          fileId: f.fileId,
+          fileName: uploadInfos.find(u => u.fileId === f.fileId)?.file.name || '',
+          blobName: f.blobName,
+          fileSize: uploadInfos.find(u => u.fileId === f.fileId)?.file.size || 0
+        }))
+        onUploadComplete(uploadedFilesData)
       }
 
     } catch (error) {
