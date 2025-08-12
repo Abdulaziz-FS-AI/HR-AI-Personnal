@@ -221,7 +221,7 @@ export function QuestionsBuilder({
                           render={({ field }) => (
                             <Textarea
                               {...field}
-                              placeholder="e.g., Describe your experience with React state management in large applications."
+                              placeholder="e.g., Describe your experience with relevant technologies and methodologies."
                               rows={3}
                               className={errors.questions?.[index]?.questionText ? "border-red-500" : ""}
                             />

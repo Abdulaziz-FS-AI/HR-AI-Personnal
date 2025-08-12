@@ -237,10 +237,10 @@ export function RequirementsMatrix({
                                   {...field}
                                   placeholder={
                                     categoryGroup.value === "education" 
-                                      ? "e.g., Bachelor's degree in Computer Science or related field"
+                                      ? "e.g., Bachelor's degree or relevant educational background"
                                       : categoryGroup.value === "experience"
-                                      ? "e.g., 5+ years of experience in full-stack development"
-                                      : "e.g., Strong communication and leadership skills"
+                                      ? "e.g., X+ years of relevant professional experience"
+                                      : "e.g., Additional skills or qualifications"
                                   }
                                   rows={2}
                                   className={

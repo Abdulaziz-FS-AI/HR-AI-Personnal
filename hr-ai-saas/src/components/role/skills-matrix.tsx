@@ -181,7 +181,7 @@ export function SkillsMatrix({
                       render={({ field }) => (
                         <Input
                           {...field}
-                          placeholder="e.g., React, JavaScript, Leadership"
+                          placeholder="e.g., Programming Language, Framework, Tool"
                           className={errors.skills?.[index]?.skillName ? "border-red-500" : ""}
                         />
                       )}

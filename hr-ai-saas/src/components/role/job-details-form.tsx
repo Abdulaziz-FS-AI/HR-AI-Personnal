@@ -75,7 +75,7 @@ export function JobDetailsForm({
             </Label>
             <Input
               id="title"
-              placeholder="e.g., Senior React Developer"
+              placeholder="e.g., Software Developer"
               {...register("title")}
               className={errors.title ? "border-red-500" : ""}
             />
@@ -109,7 +109,7 @@ export function JobDetailsForm({
             </Label>
             <Textarea
               id="responsibilities"
-              placeholder="• Lead development of new features&#10;• Mentor junior developers&#10;• Collaborate with product and design teams"
+              placeholder="• Key responsibility 1&#10;• Key responsibility 2&#10;• Key responsibility 3"
               rows={4}
               {...register("responsibilities")}
               className={errors.responsibilities ? "border-red-500" : ""}
