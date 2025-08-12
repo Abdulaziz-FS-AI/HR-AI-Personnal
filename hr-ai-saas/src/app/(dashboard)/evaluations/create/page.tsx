@@ -27,7 +27,7 @@ import {
   FileUp,
   Play
 } from 'lucide-react'
-import { FileDropzone } from '@/components/upload/FileDropzone'
+import { FileDropzone, type FileUploadStatus } from '@/components/upload/FileDropzone'
 
 interface Role {
   id: string
@@ -61,14 +61,6 @@ interface Question {
   category?: string
 }
 
-interface UploadedFile {
-  id: string
-  name: string
-  size: number
-  status: 'pending' | 'uploading' | 'completed' | 'failed'
-  progress?: number
-  error?: string
-}
 
 export default function CreateEvaluationPage() {
   const router = useRouter()
@@ -82,7 +74,7 @@ export default function CreateEvaluationPage() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [roleSkills, setRoleSkills] = useState<Skill[]>([])
   const [roleQuestions, setRoleQuestions] = useState<Question[]>([])
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([])
   const [evaluationName, setEvaluationName] = useState('')
 
   // Load roles on mount
@@ -147,22 +139,17 @@ export default function CreateEvaluationPage() {
   }
 
   const handleFilesSelected = (files: File[]) => {
-    const newFiles: UploadedFile[] = files.map(file => ({
-      id: `file-${Date.now()}-${Math.random()}`,
-      name: file.name,
-      size: file.size,
-      status: 'pending' as const
-    }))
-    
-    setUploadedFiles(prev => [...prev, ...newFiles])
+    // Files are now handled internally by FileDropzone
+    // This callback is for any additional processing if needed
   }
 
-  const removeFile = (fileId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId))
+  const handleFilesChanged = (statuses: FileUploadStatus[]) => {
+    setFileStatuses(statuses)
   }
+
 
   const startEvaluation = async () => {
-    if (!selectedRole || uploadedFiles.length === 0) {
+    if (!selectedRole || fileStatuses.length === 0) {
       toast.error('Please select a role and upload at least one file')
       return
     }
@@ -170,47 +157,18 @@ export default function CreateEvaluationPage() {
     setIsProcessing(true)
     
     try {
-      // Upload files first
-      for (const file of uploadedFiles) {
-        setUploadedFiles(prev => 
-          prev.map(f => f.id === file.id 
-            ? { ...f, status: 'uploading' as const, progress: 0 }
-            : f
-          )
-        )
-        
-        // Simulate file upload progress
-        for (let i = 0; i <= 100; i += 20) {
-          await new Promise(resolve => setTimeout(resolve, 200))
-          setUploadedFiles(prev => 
-            prev.map(f => f.id === file.id 
-              ? { ...f, progress: i }
-              : f
-            )
-          )
-        }
-        
-        setUploadedFiles(prev => 
-          prev.map(f => f.id === file.id 
-            ? { ...f, status: 'completed' as const, progress: 100 }
-            : f
-          )
-        )
-      }
-
-      // Create evaluation session
+      // Step 1: Create evaluation session
       const sessionData = {
         name: evaluationName,
         roleId: selectedRole.id,
         roleTitle: selectedRole.title,
-        files: uploadedFiles.map(f => ({
-          id: f.id,
-          name: f.name,
-          size: f.size
+        files: fileStatuses.map(f => ({
+          id: `file-${Date.now()}-${Math.random()}`,
+          name: f.file.name,
+          size: f.file.size
         }))
       }
 
-      // Call API to create the evaluation
       const response = await fetch('/api/evaluations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,8 +181,84 @@ export default function CreateEvaluationPage() {
       }
 
       const result = await response.json()
+      const evaluationId = result.data.id
       
-      toast.success('Evaluation started successfully!')
+      toast.success('Evaluation created! Processing files...')
+      
+      // Step 2: Convert File objects to base64 and send for processing
+      const fileDataArray = []
+      
+      // Use fileStatuses which contains actual File objects
+      for (const fileStatus of fileStatuses) {
+        const file = fileStatus.file
+        
+        // Update UI to show uploading
+        setFileStatuses(prev => 
+          prev.map(f => f.file.name === file.name 
+            ? { ...f, status: 'uploading' as const, progress: 0 }
+            : f
+          )
+        )
+        
+        try {
+          // Convert to base64
+          const reader = new FileReader()
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onload = () => {
+              const base64 = (reader.result as string).split(',')[1]
+              resolve(base64)
+            }
+            reader.onerror = reject
+          })
+          reader.readAsDataURL(file)
+          
+          const base64Content = await base64Promise
+          
+          fileDataArray.push({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            content: base64Content
+          })
+          
+          // Update progress
+          setFileStatuses(prev => 
+            prev.map(f => f.file.name === file.name 
+              ? { ...f, status: 'completed' as const, progress: 100 }
+              : f
+            )
+          )
+        } catch (error) {
+          console.error(`Failed to convert file ${file.name}:`, error)
+          setFileStatuses(prev => 
+            prev.map(f => f.file.name === file.name 
+              ? { ...f, status: 'failed' as const, error: 'Failed to process file' }
+              : f
+            )
+          )
+        }
+      }
+      
+      // Step 3: Process files with AI
+      toast.info('Starting AI analysis...')
+      
+      const processResponse = await fetch('/api/evaluations/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          evaluationId,
+          files: fileDataArray
+        })
+      })
+      
+      if (!processResponse.ok) {
+        const error = await processResponse.json()
+        throw new Error(error.message || 'Failed to process evaluation')
+      }
+      
+      const processResult = await processResponse.json()
+      
+      toast.success(`Evaluation completed! Processed ${processResult.data.processed} files.`)
       
       // Redirect to evaluations page
       router.push('/evaluations')
@@ -249,11 +283,6 @@ export default function CreateEvaluationPage() {
     setCurrentStep(1)
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  }
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -423,70 +452,13 @@ export default function CreateEvaluationPage() {
                   <div>
                     <FileDropzone
                       onFilesSelected={handleFilesSelected}
+                      onFilesChanged={handleFilesChanged}
                       maxFiles={150}
                       maxSize={10 * 1024 * 1024}
                       accept={{ 'application/pdf': ['.pdf'] }}
                     />
                   </div>
 
-                  {/* Uploaded Files List */}
-                  {uploadedFiles.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm text-gray-700">
-                        Uploaded Files ({uploadedFiles.length})
-                      </h4>
-                      <div className="max-h-64 overflow-y-auto space-y-2 border rounded-lg p-3">
-                        {uploadedFiles.map((file) => (
-                          <div
-                            key={file.id}
-                            className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100"
-                          >
-                            <div className="flex items-center space-x-3">
-                              <FileText className="w-4 h-4 text-gray-500" />
-                              <div>
-                                <p className="text-sm font-medium truncate max-w-xs">
-                                  {file.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {formatFileSize(file.size)}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {file.status === 'uploading' && (
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-24 bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className="bg-blue-600 h-2 rounded-full transition-all"
-                                      style={{ width: `${file.progress}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-gray-500">
-                                    {file.progress}%
-                                  </span>
-                                </div>
-                              )}
-                              {file.status === 'completed' && (
-                                <CheckCircle className="w-4 h-4 text-green-600" />
-                              )}
-                              {file.status === 'failed' && (
-                                <AlertCircle className="w-4 h-4 text-red-600" />
-                              )}
-                              {file.status === 'pending' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeFile(file.id)}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {/* Action Buttons */}
                   <div className="flex justify-between pt-4">
@@ -501,7 +473,7 @@ export default function CreateEvaluationPage() {
                     
                     <Button
                       onClick={startEvaluation}
-                      disabled={uploadedFiles.length === 0 || isProcessing}
+                      disabled={fileStatuses.length === 0 || isProcessing}
                       className="min-w-[140px]"
                     >
                       {isProcessing ? (

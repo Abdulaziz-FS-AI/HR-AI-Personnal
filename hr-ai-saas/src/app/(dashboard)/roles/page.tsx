@@ -11,7 +11,15 @@ export default async function RolesPage() {
     const session = await auth()
     
     if (!session?.user?.id) {
+      console.error('No user ID in session:', session)
       redirect('/login')
+    }
+
+    // Validate the user ID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(session.user.id)) {
+      console.error('Invalid user ID format:', session.user.id)
+      throw new Error(`Invalid user ID format: ${session.user.id}`)
     }
 
     const dbRoles = await getUserRoles(session.user.id)

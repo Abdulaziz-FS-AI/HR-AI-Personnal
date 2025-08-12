@@ -17,8 +17,23 @@ async function executeUserScopedQuery<T>(
     throw new Error('User ID is required for all database operations')
   }
   
-  const pool = await getDbConnection()
-  return queryBuilder(pool, userId)
+  let pool: sql.ConnectionPool | null = null
+  try {
+    pool = await getDbConnection()
+    const result = await queryBuilder(pool, userId)
+    return result
+  } catch (error) {
+    console.error('Database query error:', error)
+    throw error
+  } finally {
+    if (pool) {
+      try {
+        await pool.close()
+      } catch (closeError) {
+        console.error('Error closing database connection:', closeError)
+      }
+    }
+  }
 }
 
 // ROLES - User-scoped operations
@@ -178,48 +193,6 @@ export async function getUserFile(userId: string, fileId: string) {
   })
 }
 
-// EVALUATIONS - User-scoped operations
-export async function getUserEvaluations(userId: string, filters?: {
-  roleId?: string
-  status?: 'pending' | 'processing' | 'completed' | 'failed'
-  limit?: number
-  offset?: number
-}) {
-  return executeUserScopedQuery(userId, async (pool, uid) => {
-    let query = `
-      SELECT 
-        es.*,
-        r.title as role_title,
-        (SELECT COUNT(*) FROM evaluation_files WHERE session_id = es.id) as file_count,
-        (SELECT COUNT(*) FROM evaluation_results WHERE session_id = es.id) as result_count
-      FROM evaluation_sessions es
-      LEFT JOIN roles r ON es.role_id = r.id
-      WHERE es.user_id = @userId
-    `
-    
-    const request = pool.request()
-      .input('userId', sql.UniqueIdentifier, uid)
-    
-    if (filters?.roleId) {
-      query += ' AND es.role_id = @roleId'
-      request.input('roleId', sql.UniqueIdentifier, filters.roleId)
-    }
-    
-    if (filters?.status) {
-      query += ' AND es.status = @status'
-      request.input('status', sql.NVarChar, filters.status)
-    }
-    
-    query += ' ORDER BY es.created_at DESC'
-    
-    if (filters?.limit) {
-      query += ` OFFSET ${filters.offset || 0} ROWS FETCH NEXT ${filters.limit} ROWS ONLY`
-    }
-    
-    const result = await request.query(query)
-    return result.recordset
-  })
-}
 
 export async function getUserEvaluation(userId: string, evaluationId: string) {
   return executeUserScopedQuery(userId, async (pool, uid) => {
@@ -800,23 +773,6 @@ export interface BatchProcessingSession {
   status: 'pending' | 'processing' | 'completed' | 'failed'
 }
 
-export async function getUserBatchSession(userId: string, sessionId: string) {
-  return executeUserScopedQuery(userId, async (pool, uid) => {
-    const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, uid)
-      .input('sessionId', sql.NVarChar, sessionId)
-      .query(`
-        SELECT session_id as sessionId, user_id as userId, role_id as roleId,
-               total_files as totalFiles, processed_files as processedFiles,
-               failed_files as failedFiles, started_at as startedAt,
-               completed_at as completedAt, status
-        FROM batch_sessions 
-        WHERE session_id = @sessionId AND user_id = @userId
-      `)
-    
-    return result.recordset[0] || null
-  })
-}
 
 // BULK DELETE - User-scoped with safety checks
 export async function deleteUserData(userId: string, dataType: 'all' | 'files' | 'evaluations' | 'results') {
@@ -862,45 +818,6 @@ export async function deleteUserData(userId: string, dataType: 'all' | 'files' |
 
 // MISSING FUNCTIONS FOR COMPLETE API COVERAGE
 
-export async function createUserEvaluation(userId: string, evaluationData: {
-  name: string
-  roleId: string
-  roleTitle: string
-  files: Array<{ id: string; name: string; size: number }>
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-}) {
-  return executeUserScopedQuery(userId, async (pool, uid) => {
-    // First verify role belongs to user
-    const roleCheck = await pool.request()
-      .input('userId', sql.UniqueIdentifier, uid)
-      .input('roleId', sql.UniqueIdentifier, evaluationData.roleId)
-      .query(`
-        SELECT id FROM roles 
-        WHERE id = @roleId AND user_id = @userId AND is_active = 1
-      `)
-    
-    if (roleCheck.recordset.length === 0) {
-      throw new Error('Role not found or access denied')
-    }
-    
-    const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, uid)
-      .input('roleId', sql.UniqueIdentifier, evaluationData.roleId)
-      .input('name', sql.NVarChar, evaluationData.name)
-      .input('status', sql.NVarChar, evaluationData.status)
-      .input('totalFiles', sql.Int, evaluationData.files.length)
-      .query(`
-        INSERT INTO evaluation_sessions (user_id, role_id, name, status, total_files)
-        OUTPUT INSERTED.id, INSERTED.user_id as userId, INSERTED.role_id as roleId,
-               INSERTED.name, INSERTED.status, INSERTED.total_files as totalFiles,
-               INSERTED.processed_files as processedFiles, INSERTED.created_at as createdAt,
-               INSERTED.updated_at as updatedAt
-        VALUES (@userId, @roleId, @name, @status, @totalFiles)
-      `)
-    
-    return result.recordset[0]
-  })
-}
 
 // Upload Session functions
 export async function getUserUploadSession(sessionId: string, userId: string) {
@@ -947,4 +864,127 @@ export async function getUserSessionFiles(sessionId: string, userId: string) {
 // File operations - using existing functions with consistent parameter order
 export async function updateUserFile(fileId: string, userId: string, updates: any) {
   return updateUserFileStatus(userId, fileId, updates)
+}
+
+// EVALUATIONS - User-scoped operations
+export async function getUserEvaluations(userId: string, filters?: {
+  roleId?: string
+  status?: string
+  limit?: number
+  offset?: number
+}) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const request = pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('limit', sql.Int, filters?.limit || 50)
+      .input('offset', sql.Int, filters?.offset || 0)
+    
+    let whereConditions = ['es.user_id = @userId']
+    
+    if (filters?.roleId) {
+      request.input('roleId', sql.UniqueIdentifier, filters.roleId)
+      whereConditions.push('es.role_id = @roleId')
+    }
+    
+    if (filters?.status) {
+      request.input('status', sql.NVarChar, filters.status)
+      whereConditions.push('es.status = @status')
+    }
+    
+    const result = await request.query(`
+      SELECT 
+        es.id,
+        es.name,
+        es.role_id as roleId,
+        r.title as roleTitle,
+        es.status,
+        es.total_files as totalResumes,
+        es.processed_files as processedResumes,
+        es.average_score as averageScore,
+        es.top_candidates as topCandidates,
+        es.created_at as createdAt,
+        es.completed_at as completedAt
+      FROM evaluation_sessions es
+      LEFT JOIN roles r ON es.role_id = r.id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY es.created_at DESC
+      OFFSET @offset ROWS
+      FETCH NEXT @limit ROWS ONLY
+    `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserEvaluation(userId: string, data: {
+  name: string
+  roleId: string
+  roleTitle?: string
+  files: Array<{ id: string; name: string; size: number }>
+  status?: string
+}) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // Create evaluation session
+    const sessionResult = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, data.roleId)
+      .input('name', sql.NVarChar, data.name)
+      .input('totalFiles', sql.Int, data.files.length)
+      .input('status', sql.NVarChar, data.status || 'pending')
+      .query(`
+        INSERT INTO evaluation_sessions (
+          user_id, role_id, name, total_files, processed_files, status
+        )
+        OUTPUT INSERTED.id, INSERTED.name, INSERTED.role_id as roleId,
+               INSERTED.status, INSERTED.total_files as totalFiles,
+               INSERTED.created_at as createdAt
+        VALUES (
+          @userId, @roleId, @name, @totalFiles, 0, @status
+        )
+      `)
+    
+    const evaluationSession = sessionResult.recordset[0]
+    
+    // Insert files for this evaluation session
+    for (const file of data.files) {
+      await pool.request()
+        .input('sessionId', sql.UniqueIdentifier, evaluationSession.id)
+        .input('fileName', sql.NVarChar, file.name)
+        .input('fileSize', sql.Int, file.size)
+        .input('status', sql.NVarChar, 'pending')
+        .query(`
+          INSERT INTO evaluation_files (
+            session_id, file_name, file_size, status
+          )
+          VALUES (
+            @sessionId, @fileName, @fileSize, @status
+          )
+        `)
+    }
+    
+    return evaluationSession
+  })
+}
+
+export async function getUserBatchSession(userId: string, sessionId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .query(`
+        SELECT 
+          id,
+          user_id as userId,
+          status,
+          total_files as totalFiles,
+          processed_files as processedFiles,
+          failed_files as failedFiles,
+          created_at as createdAt,
+          completed_at as completedAt
+        FROM batch_sessions
+        WHERE id = @sessionId AND user_id = @userId
+      `)
+    
+    return result.recordset[0] || null
+  })
 }

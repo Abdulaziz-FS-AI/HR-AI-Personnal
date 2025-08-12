@@ -16,14 +16,18 @@ interface FileUploadStatus {
 
 interface FileDropzoneProps {
   onFilesSelected: (files: File[]) => void
+  onFilesChanged?: (fileStatuses: FileUploadStatus[]) => void
   maxFiles?: number
   maxSize?: number // in bytes
   accept?: Record<string, string[]>
   disabled?: boolean
 }
 
+export type { FileUploadStatus }
+
 export function FileDropzone({
   onFilesSelected,
+  onFilesChanged,
   maxFiles = 100,
   maxSize = 10 * 1024 * 1024, // 10MB default
   accept = { 'application/pdf': ['.pdf'] },
@@ -64,10 +68,16 @@ export function FileDropzone({
         status: 'pending' as const
       }))
       
-      setFiles(prev => [...prev, ...newFiles])
+      setFiles(prev => {
+        const updated = [...prev, ...newFiles]
+        if (onFilesChanged) {
+          onFilesChanged(updated)
+        }
+        return updated
+      })
       onFilesSelected(acceptedFiles)
     }
-  }, [maxSize, maxFiles, onFilesSelected])
+  }, [maxSize, maxFiles, onFilesSelected, onFilesChanged])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -79,7 +89,13 @@ export function FileDropzone({
   })
 
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index))
+    setFiles(prev => {
+      const updated = prev.filter((_, i) => i !== index)
+      if (onFilesChanged) {
+        onFilesChanged(updated)
+      }
+      return updated
+    })
   }
 
   const clearRejectedFiles = () => {

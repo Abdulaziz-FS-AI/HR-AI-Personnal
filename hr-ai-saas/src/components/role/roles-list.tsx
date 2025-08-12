@@ -50,12 +50,23 @@ export function RolesList({ initialRoles }: RolesListProps) {
     }
   }
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    }).format(new Date(date))
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return 'N/A'
+    
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date)
+      if (isNaN(dateObj.getTime())) {
+        return 'N/A'
+      }
+      return new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }).format(dateObj)
+    } catch (error) {
+      console.error('Date formatting error:', error, date)
+      return 'N/A'
+    }
   }
 
   const getEmploymentTypeColor = (type: string | null) => {
@@ -248,7 +259,15 @@ export function RolesList({ initialRoles }: RolesListProps) {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {roles.filter(r => new Date(r.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length}
+                {roles.filter(r => {
+                  try {
+                    const roleDate = new Date(r.createdAt)
+                    if (isNaN(roleDate.getTime())) return false
+                    return roleDate > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+                  } catch {
+                    return false
+                  }
+                }).length}
               </div>
               <div className="text-sm text-gray-500">Created This Week</div>
             </div>
