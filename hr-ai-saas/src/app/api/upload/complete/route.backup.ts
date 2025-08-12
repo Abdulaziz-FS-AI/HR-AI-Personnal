@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireUserContext, logDataAccess } from "@/lib/security/user-context"
-import { withRateLimit } from "@/lib/security/rate-limit"
+import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { getServiceBusService, type FileProcessingMessage } from "@/lib/azure/service-bus"
 import { 
-  getUserUploadSessionByToken, 
-  updateUserUploadSession, 
-  updateUserFileStatus, 
-  getUserFileById 
-} from "@/lib/db-secure"
+  getUploadSessionByToken, 
+  updateUploadSession, 
+  updateFileStatus, 
+  getFileById 
+} from "@/lib/db-files"
 import { getBlobStorageService } from "@/lib/azure/blob-storage"
 
 const completeUploadSchema = z.object({
@@ -22,19 +21,13 @@ const completeUploadSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user and get secure context
-    const userContext = await requireUserContext(request)
+    const session = await auth()
     
-    // Apply rate limiting for upload operations
-    const rateLimitResult = await withRateLimit(
-      request,
-      userContext.userId,
-      userContext.subscriptionTier,
-      'upload'
-    )
-    
-    if (!rateLimitResult.allowed) {
-      return rateLimitResult.response!
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      )
     }
 
     const body = await request.json()
@@ -54,33 +47,25 @@ export async function POST(request: NextRequest) {
 
     const { sessionToken, fileResults } = validationResult.data
 
-    // Get upload session using secure function (automatically validates ownership)
-    const uploadSession = await getUserUploadSessionByToken(userContext.userId, sessionToken)
+    // Get upload session
+    const uploadSession = await getUploadSessionByToken(sessionToken)
     if (!uploadSession) {
-      await logDataAccess(
-        userContext.userId,
-        'unauthorized_session_access',
-        'upload_session',
-        sessionToken,
-        { action: 'POST', endpoint: '/api/upload/complete' }
-      )
-      
       return NextResponse.json(
         { success: false, message: "Upload session not found" },
         { status: 404 }
       )
     }
 
+    // Verify session belongs to user
+    if (uploadSession.userId !== session.user.id) {
+      return NextResponse.json(
+        { success: false, message: "Access denied" },
+        { status: 403 }
+      )
+    }
+
     // Check if session is expired
     if (new Date() > uploadSession.expiresAt) {
-      await logDataAccess(
-        userContext.userId,
-        'expired_session_access',
-        'upload_session',
-        uploadSession.id,
-        { action: 'POST', endpoint: '/api/upload/complete', expiresAt: uploadSession.expiresAt }
-      )
-      
       return NextResponse.json(
         { success: false, message: "Upload session expired" },
         { status: 410 }
@@ -97,16 +82,16 @@ export async function POST(request: NextRequest) {
     // Process each file result
     for (const fileResult of fileResults) {
       try {
-        const fileRecord = await getUserFileById(userContext.userId, fileResult.fileId)
+        const fileRecord = await getFileById(fileResult.fileId)
         if (!fileRecord) {
-          await logDataAccess(
-            userContext.userId,
-            'file_not_found',
-            'file',
-            fileResult.fileId,
-            { action: 'upload_complete', endpoint: '/api/upload/complete' }
-          )
           console.error(`File record not found: ${fileResult.fileId}`)
+          failedUploads++
+          continue
+        }
+
+        // Verify file belongs to user
+        if (fileRecord.userId !== session.user.id) {
+          console.error(`File access denied: ${fileResult.fileId}`)
           failedUploads++
           continue
         }
@@ -116,24 +101,10 @@ export async function POST(request: NextRequest) {
           const blobExists = await blobService.blobExists(fileRecord.blobFilename)
           
           if (blobExists) {
-            // Update file status to completed using secure function
-            await updateUserFileStatus(userContext.userId, fileResult.fileId, {
+            // Update file status to completed
+            await updateFileStatus(fileResult.fileId, {
               uploadStatus: 'completed'
             })
-
-            // Log successful file completion
-            await logDataAccess(
-              userContext.userId,
-              'file_upload_completed',
-              'file',
-              fileRecord.id,
-              { 
-                filename: fileRecord.originalFilename,
-                fileSize: fileRecord.fileSize,
-                sessionId: uploadSession.id,
-                endpoint: '/api/upload/complete'
-              }
-            )
 
             // Queue for processing
             const processingMessage: FileProcessingMessage = {
@@ -150,64 +121,30 @@ export async function POST(request: NextRequest) {
             successfulUploads++
           } else {
             // Blob doesn't exist, mark as failed
-            await updateUserFileStatus(userContext.userId, fileResult.fileId, {
+            await updateFileStatus(fileResult.fileId, {
               uploadStatus: 'failed'
             })
-            
-            await logDataAccess(
-              userContext.userId,
-              'blob_verification_failed',
-              'file',
-              fileRecord.id,
-              { 
-                filename: fileRecord.originalFilename,
-                blobFilename: fileRecord.blobFilename,
-                endpoint: '/api/upload/complete'
-              }
-            )
             failedUploads++
           }
         } else {
           // Upload failed
-          await updateUserFileStatus(userContext.userId, fileResult.fileId, {
+          await updateFileStatus(fileResult.fileId, {
             uploadStatus: 'failed'
           })
-          
-          await logDataAccess(
-            userContext.userId,
-            'file_upload_failed',
-            'file',
-            fileRecord.id,
-            { 
-              filename: fileRecord.originalFilename,
-              error: fileResult.error,
-              endpoint: '/api/upload/complete'
-            }
-          )
           failedUploads++
         }
 
       } catch (error) {
         console.error(`Error processing file result ${fileResult.fileId}:`, error)
-        await logDataAccess(
-          userContext.userId,
-          'file_processing_error',
-          'file',
-          fileResult.fileId,
-          { 
-            error: error instanceof Error ? error.message : 'Unknown error',
-            endpoint: '/api/upload/complete'
-          }
-        )
         failedUploads++
       }
     }
 
-    // Update upload session using secure function
+    // Update upload session
     const sessionStatus = failedUploads === fileResults.length ? 'failed' : 
                          successfulUploads === fileResults.length ? 'completed' : 'completed'
 
-    await updateUserUploadSession(userContext.userId, uploadSession.id, {
+    await updateUploadSession(uploadSession.id, {
       uploadedFiles: successfulUploads,
       failedFiles: failedUploads,
       status: sessionStatus
@@ -233,22 +170,6 @@ export async function POST(request: NextRequest) {
       sessionStatus
     }
 
-    // Log successful upload completion
-    await logDataAccess(
-      userContext.userId,
-      'upload_session_completed',
-      'upload_session',
-      uploadSession.id,
-      { 
-        totalFiles: fileResults.length,
-        successfulUploads,
-        failedUploads,
-        queuedForProcessing: processingMessages.length,
-        sessionStatus,
-        endpoint: '/api/upload/complete'
-      }
-    )
-
     return NextResponse.json({
       success: true,
       data: response,
@@ -257,21 +178,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Upload completion error:', error)
-    
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
-    
-    if (error instanceof Error && error.message === 'User account not found or inactive') {
-      return NextResponse.json(
-        { success: false, message: "User account not found or inactive" },
-        { status: 403 }
-      )
-    }
-    
     return NextResponse.json(
       { 
         success: false, 

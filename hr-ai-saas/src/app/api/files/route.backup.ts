@@ -1,29 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireUserContext, logDataAccess } from "@/lib/security/user-context"
-import { withRateLimit } from "@/lib/security/rate-limit"
-import { getUserFiles } from "@/lib/db-secure"
+import { auth } from "@/lib/auth"
+import { getFilesByUserId } from "@/lib/db-files"
 
 export async function GET(request: NextRequest) {
   try {
-    // Secure user context validation
-    const userContext = await requireUserContext(request)
+    const session = await auth()
     
-    // Apply rate limiting
-    const rateLimitCheck = await withRateLimit(
-      request,
-      userContext.userId,
-      userContext.subscriptionTier,
-      'default'
-    )
-    if (!rateLimitCheck.allowed) return rateLimitCheck.response
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      )
+    }
 
     const { searchParams } = new URL(request.url)
     const roleId = searchParams.get('roleId')
 
-    // Get files with built-in user isolation
-    const files = await getUserFiles(userContext.userId, {
-      roleId: roleId || undefined
-    })
+    // Get files for user, optionally filtered by role
+    const files = await getFilesByUserId(session.user.id, roleId || undefined)
 
     // Group files by status for summary
     const summary = {
@@ -44,19 +38,6 @@ export async function GET(request: NextRequest) {
       analyzed: files.filter(f => f.aiScore !== null).length
     }
 
-    // Log data access for audit
-    await logDataAccess(
-      userContext.userId,
-      'LIST_FILES',
-      'files',
-      'multiple',
-      { 
-        count: files.length,
-        roleId: roleId,
-        summary: summary
-      }
-    )
-
     return NextResponse.json({
       success: true,
       data: {
@@ -67,15 +48,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Files fetch error:', error)
-    
-    // Check if it's an authentication error
-    if (error instanceof Error && error.message.includes('Authentication')) {
-      return NextResponse.json(
-        { success: false, message: error.message },
-        { status: 401 }
-      )
-    }
-    
     return NextResponse.json(
       { 
         success: false, 

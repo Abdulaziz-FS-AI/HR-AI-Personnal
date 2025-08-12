@@ -24,7 +24,8 @@ import {
   Loader2,
   ChevronRight,
   Building,
-  FileUp
+  FileUp,
+  Play
 } from 'lucide-react'
 import { FileDropzone } from '@/components/upload/FileDropzone'
 

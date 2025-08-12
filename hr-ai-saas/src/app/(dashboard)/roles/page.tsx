@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
-import { getRolesByUserId } from "@/lib/db"
+import { getUserRoles } from "@/lib/db-secure"
 import { RolesList } from "@/components/role/roles-list"
 
 // Force dynamic rendering for this page
@@ -14,7 +14,7 @@ export default async function RolesPage() {
       redirect('/login')
     }
 
-    const dbRoles = await getRolesByUserId(session.user.id)
+    const dbRoles = await getUserRoles(session.user.id)
     
     // Convert DB roles to the format expected by RolesList
     const roles = dbRoles.map(role => ({

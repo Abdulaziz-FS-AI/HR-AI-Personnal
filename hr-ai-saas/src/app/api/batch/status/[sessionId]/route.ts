@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { BatchProcessor } from '@/lib/batch-processor'
-import { auth } from '@/lib/auth'
+import { requireUserContext, logDataAccess } from '@/lib/security/user-context'
+import { withRateLimit } from '@/lib/security/rate-limit'
+import { getUserBatchSession } from '@/lib/db-secure'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Authenticate user and get secure context
+    const userContext = await requireUserContext(request)
+    
+    // Apply rate limiting
+    const rateLimitResult = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!
     }
 
     const { sessionId } = await params
@@ -22,23 +33,39 @@ export async function GET(
       )
     }
 
-    // Get batch processing status
-    const status = await BatchProcessor.getBatchStatus(sessionId)
+    // Get batch processing status using secure function (automatically validates ownership)
+    const status = await getUserBatchSession(userContext.userId, sessionId)
 
     if (!status) {
+      await logDataAccess(
+        userContext.userId,
+        'batch_session_not_found',
+        'batch_session',
+        sessionId,
+        { action: 'GET', endpoint: '/api/batch/status' }
+      )
+      
       return NextResponse.json(
         { error: 'Batch session not found' },
         { status: 404 }
       )
     }
 
-    // SECURITY: Verify the session belongs to the authenticated user
-    if (status.userId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Access denied - session belongs to different user' },
-        { status: 403 }
-      )
-    }
+    // Log successful access
+    await logDataAccess(
+      userContext.userId,
+      'read',
+      'batch_session',
+      sessionId,
+      { 
+        status: status.status,
+        totalFiles: status.totalFiles,
+        processedFiles: status.processedFiles,
+        failedFiles: status.failedFiles,
+        endpoint: '/api/batch/status',
+        method: 'GET'
+      }
+    )
 
     return NextResponse.json({
       success: true,
@@ -47,6 +74,21 @@ export async function GET(
 
   } catch (error) {
     console.error('Error getting batch status:', error)
+    
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    
+    if (error instanceof Error && error.message === 'User account not found or inactive') {
+      return NextResponse.json(
+        { success: false, error: 'User account not found or inactive' },
+        { status: 403 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         success: false, 

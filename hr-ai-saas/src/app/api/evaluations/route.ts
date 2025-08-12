@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { requireUserContext, validateResourceOwnership, logDataAccess, checkUserQuota } from "@/lib/security/user-context"
+import { withRateLimit } from "@/lib/security/rate-limit"
+import { getUserEvaluations, createUserEvaluation } from "@/lib/db-secure"
 import { z } from "zod"
-import sql from 'mssql'
-import { getDbConnection } from '@/lib/db'
 
 const createEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name too long"),
@@ -18,46 +18,68 @@ const createEvaluationSchema = z.object({
 // GET /api/evaluations - List all evaluations for authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
+    // Apply rate limiting
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
+
+    const { searchParams } = new URL(request.url)
+    const roleId = searchParams.get('roleId')
+    const status = searchParams.get('status')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    // Get evaluations with built-in user isolation
+    const evaluations = await getUserEvaluations(userContext.userId, {
+      roleId: roleId || undefined,
+      status: status as any,
+      limit,
+      offset
+    })
+
+    // Log data access for audit
+    await logDataAccess(
+      userContext.userId,
+      'LIST_EVALUATIONS',
+      'evaluations',
+      'multiple',
+      { 
+        count: evaluations.length,
+        roleId,
+        status,
+        limit,
+        offset
+      }
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: evaluations,
+      pagination: {
+        limit,
+        offset,
+        hasMore: evaluations.length === limit
+      }
+    })
+
+  } catch (error) {
+    console.error('Evaluations fetch error:', error)
+    
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message.includes('Authentication')) {
       return NextResponse.json(
-        { success: false, message: "Authentication required" },
+        { success: false, message: error.message },
         { status: 401 }
       )
     }
-
-    const pool = await getDbConnection()
-    const result = await pool.request()
-      .input('userId', sql.NVarChar, session.user.id)
-      .query(`
-        SELECT 
-          es.id,
-          es.name,
-          es.role_id as roleId,
-          r.title as roleTitle,
-          es.status,
-          es.total_files as totalResumes,
-          es.processed_files as processedResumes,
-          es.average_score as averageScore,
-          es.top_candidates as topCandidates,
-          es.created_at as createdAt,
-          es.completed_at as completedAt
-        FROM evaluation_sessions es
-        INNER JOIN roles r ON es.role_id = r.id
-        WHERE es.user_id = @userId
-        ORDER BY es.created_at DESC
-      `)
     
-    await pool.close()
-    
-    return NextResponse.json({
-      success: true,
-      data: result.recordset
-    })
-    
-  } catch (error) {
-    console.error('Evaluations fetch error:', error)
     return NextResponse.json(
       { 
         success: false, 
@@ -69,26 +91,29 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/evaluations - Create new evaluation session
+// POST /api/evaluations - Create new evaluation
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
+    // Apply rate limiting for creation endpoint
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'create'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
 
     const body = await request.json()
     
-    // Validate input data
+    // Validate input
     const validationResult = createEvaluationSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
         { 
-          success: false, 
+          success: false,
           message: "Validation failed",
           errors: validationResult.error.flatten().fieldErrors
         },
@@ -96,58 +121,83 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, roleId, files } = validationResult.data
+    const { name, roleId, roleTitle, files } = validationResult.data
 
-    const pool = await getDbConnection()
-    
-    // Create evaluation session
-    const sessionResult = await pool.request()
-      .input('userId', sql.NVarChar, session.user.id)
-      .input('roleId', sql.UniqueIdentifier, roleId)
-      .input('name', sql.NVarChar, name)
-      .input('totalFiles', sql.Int, files.length)
-      .input('status', sql.NVarChar, 'pending')
-      .query(`
-        INSERT INTO evaluation_sessions (
-          user_id, role_id, name, total_files, processed_files, status
-        )
-        OUTPUT INSERTED.id, INSERTED.name, INSERTED.role_id as roleId,
-               INSERTED.status, INSERTED.total_files as totalFiles,
-               INSERTED.created_at as createdAt
-        VALUES (
-          @userId, @roleId, @name, @totalFiles, 0, @status
-        )
-      `)
-    
-    const evaluationSession = sessionResult.recordset[0]
-    
-    // Insert files for this evaluation session
-    for (const file of files) {
-      await pool.request()
-        .input('sessionId', sql.UniqueIdentifier, evaluationSession.id)
-        .input('fileName', sql.NVarChar, file.name)
-        .input('fileSize', sql.Int, file.size)
-        .input('status', sql.NVarChar, 'pending')
-        .query(`
-          INSERT INTO evaluation_files (
-            session_id, file_name, file_size, status
-          )
-          VALUES (
-            @sessionId, @fileName, @fileSize, @status
-          )
-        `)
+    // Validate role ownership
+    const hasAccess = await validateResourceOwnership(roleId, userContext.userId, 'role')
+    if (!hasAccess) {
+      await logDataAccess(
+        userContext.userId,
+        'UNAUTHORIZED_ACCESS_ATTEMPT',
+        'role',
+        roleId,
+        { action: 'CREATE_EVALUATION' }
+      )
+      
+      return NextResponse.json(
+        { success: false, message: 'Role not found or access denied' },
+        { status: 404 }
+      )
     }
-    
-    await pool.close()
+
+    // Check evaluation quota
+    const evaluationQuota = await checkUserQuota(userContext.userId, 'evaluations')
+    if (!evaluationQuota.allowed) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: `Evaluation limit reached (${evaluationQuota.current}/${evaluationQuota.limit} this month). Please upgrade your plan.`,
+          quota: evaluationQuota
+        },
+        { status: 429 }
+      )
+    }
+
+    // Create evaluation with user context
+    const evaluation = await createUserEvaluation(userContext.userId, {
+      name,
+      roleId,
+      roleTitle,
+      files,
+      status: 'pending'
+    })
+
+    // Log evaluation creation
+    await logDataAccess(
+      userContext.userId,
+      'CREATE_EVALUATION',
+      'evaluation',
+      evaluation.id,
+      { 
+        name,
+        roleId,
+        fileCount: files.length
+      }
+    )
 
     return NextResponse.json({
       success: true,
-      data: evaluationSession,
-      message: "Evaluation session created successfully"
-    }, { status: 201 })
-    
+      data: evaluation,
+      message: "Evaluation created successfully",
+      quota: {
+        evaluations: {
+          used: evaluationQuota.current + 1,
+          limit: evaluationQuota.limit
+        }
+      }
+    })
+
   } catch (error) {
     console.error('Evaluation creation error:', error)
+    
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message.includes('Authentication')) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 401 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         success: false, 

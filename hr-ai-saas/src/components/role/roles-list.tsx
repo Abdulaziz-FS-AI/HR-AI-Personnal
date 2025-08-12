@@ -93,7 +93,7 @@ export function RolesList({ initialRoles }: RolesListProps) {
             Create your first job role to start screening candidates with AI-powered analysis.
             Define skills, requirements, and custom questions for better candidate matching.
           </p>
-          <Link href="/dashboard/roles/create">
+          <Link href="/roles/create">
             <Button className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               Create Your First Role
@@ -111,7 +111,7 @@ export function RolesList({ initialRoles }: RolesListProps) {
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-semibold">Your Job Roles ({roles.length})</h2>
         </div>
-        <Link href="/dashboard/roles/create">
+        <Link href="/roles/create">
           <Button className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Create New Role
@@ -143,7 +143,7 @@ export function RolesList({ initialRoles }: RolesListProps) {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Link href={`/dashboard/roles/${role.id}/edit`}>
+                  <Link href={`/roles/${role.id}/edit`}>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -206,12 +206,12 @@ export function RolesList({ initialRoles }: RolesListProps) {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-3 border-t">
-                  <Link href={`/dashboard/roles/${role.id}`} className="flex-1">
+                  <Link href={`/roles/${role.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full">
                       View Details
                     </Button>
                   </Link>
-                  <Link href={`/dashboard/roles/${role.id}/screen`} className="flex-1">
+                  <Link href={`/roles/${role.id}/screen`} className="flex-1">
                     <Button size="sm" className="w-full">
                       Screen Resumes
                     </Button>

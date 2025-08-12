@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { getUploadSession, getSessionFiles } from "@/lib/db-files"
+import { requireUserContext, logDataAccess } from "@/lib/security/user-context"
+import { withRateLimit } from "@/lib/security/rate-limit"
+import { getUserUploadSession, getUserSessionFiles } from "@/lib/db-secure"
 
 interface RouteParams {
   params: Promise<{
@@ -33,14 +34,17 @@ interface UploadProgressResponse {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
+    // Apply rate limiting
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
 
     const { sessionId } = await params
 
@@ -53,25 +57,34 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Get upload session
-    const uploadSession = await getUploadSession(sessionId)
+    // Get upload session with built-in user isolation
+    const uploadSession = await getUserUploadSession(sessionId, userContext.userId)
     if (!uploadSession) {
+      // Log unauthorized access attempt
+      await logDataAccess(
+        userContext.userId,
+        'UNAUTHORIZED_ACCESS_ATTEMPT',
+        'upload_session',
+        sessionId,
+        { action: 'GET_UPLOAD_PROGRESS' }
+      )
+      
       return NextResponse.json(
-        { success: false, message: "Upload session not found" },
+        { success: false, message: "Upload session not found or access denied" },
         { status: 404 }
       )
     }
 
-    // Verify session belongs to user
-    if (uploadSession.userId !== session.user.id) {
+    // Check if session has expired
+    if (uploadSession.expiresAt < new Date()) {
       return NextResponse.json(
-        { success: false, message: "Access denied" },
-        { status: 403 }
+        { success: false, message: "Upload session has expired" },
+        { status: 410 }
       )
     }
 
-    // Get all files in this session
-    const sessionFiles = await getSessionFiles(sessionId)
+    // Get all files in this session with user isolation
+    const sessionFiles = await getUserSessionFiles(sessionId, userContext.userId)
 
     // Calculate overall progress
     const totalFiles = uploadSession.totalFiles
@@ -116,6 +129,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       updatedAt: uploadSession.updatedAt.toISOString()
     }
 
+    // Log upload progress access for audit
+    await logDataAccess(
+      userContext.userId,
+      'GET_UPLOAD_PROGRESS',
+      'upload_session',
+      sessionId,
+      { 
+        totalFiles,
+        uploadedFiles,
+        processedFiles,
+        failedFiles,
+        overallProgress,
+        status: uploadSession.status
+      }
+    )
+
     return NextResponse.json({
       success: true,
       data: response
@@ -123,6 +152,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   } catch (error) {
     console.error('Upload progress error:', error)
+    
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message.includes('Authentication')) {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 401 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         success: false, 

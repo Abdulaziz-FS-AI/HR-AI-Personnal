@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { getRoleById, getRoleQuestions, createRoleQuestion, deleteRoleQuestion } from "@/lib/db"
+import { requireUserContext, logDataAccess, validateResourceOwnership } from "@/lib/security/user-context"
+import { withRateLimit } from "@/lib/security/rate-limit"
+import { getUserRole, getUserRoleQuestions, createUserRoleQuestion, deleteUserRoleQuestion } from "@/lib/db-secure"
 import { questionSchema } from "@/lib/validations/role"
 import { z } from "zod"
 
@@ -14,13 +15,19 @@ const deleteQuestionSchema = z.object({
 // GET /api/role-questions?roleId=xxx - Get all questions for a role
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth()
+    // Authenticate user and get secure context
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
+    // Apply rate limiting
+    const rateLimitResult = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!
     }
 
     const { searchParams } = new URL(request.url)
@@ -42,16 +49,38 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify role belongs to user
-    const role = await getRoleById(roleId, session.user.id)
-    if (!role) {
+    // Validate resource ownership
+    const hasAccess = await validateResourceOwnership(roleId, userContext.userId, 'role')
+    if (!hasAccess) {
+      await logDataAccess(
+        userContext.userId,
+        'unauthorized_access_attempt',
+        'role_questions',
+        roleId,
+        { action: 'GET', endpoint: '/api/role-questions' }
+      )
+      
       return NextResponse.json(
         { success: false, message: "Role not found or access denied" },
         { status: 404 }
       )
     }
 
-    const questions = await getRoleQuestions(roleId)
+    // Get questions using secure function
+    const questions = await getUserRoleQuestions(userContext.userId, roleId)
+    
+    // Log successful data access
+    await logDataAccess(
+      userContext.userId,
+      'read',
+      'role_questions',
+      roleId,
+      { 
+        questionCount: questions.length,
+        endpoint: '/api/role-questions',
+        method: 'GET'
+      }
+    )
     
     return NextResponse.json({
       success: true,
@@ -60,6 +89,21 @@ export async function GET(request: NextRequest) {
     
   } catch (error) {
     console.error('Role questions fetch error:', error)
+    
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      )
+    }
+    
+    if (error instanceof Error && error.message === 'User account not found or inactive') {
+      return NextResponse.json(
+        { success: false, message: "User account not found or inactive" },
+        { status: 403 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         success: false, 
@@ -74,13 +118,19 @@ export async function GET(request: NextRequest) {
 // POST /api/role-questions - Add question to role
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
+    // Authenticate user and get secure context
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
+    // Apply rate limiting
+    const rateLimitResult = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!
     }
 
     const body = await request.json()
@@ -100,9 +150,17 @@ export async function POST(request: NextRequest) {
 
     const questionData = validationResult.data
 
-    // Verify role belongs to user
-    const role = await getRoleById(questionData.roleId, session.user.id)
-    if (!role) {
+    // Validate resource ownership
+    const hasAccess = await validateResourceOwnership(questionData.roleId, userContext.userId, 'role')
+    if (!hasAccess) {
+      await logDataAccess(
+        userContext.userId,
+        'unauthorized_access_attempt',
+        'role_questions',
+        questionData.roleId,
+        { action: 'POST', endpoint: '/api/role-questions', questionText: questionData.questionText }
+      )
+      
       return NextResponse.json(
         { success: false, message: "Role not found or access denied" },
         { status: 404 }
@@ -110,8 +168,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Check question limit (max 5 questions per role)
-    const existingQuestions = await getRoleQuestions(questionData.roleId)
+    const existingQuestions = await getUserRoleQuestions(userContext.userId, questionData.roleId)
     if (existingQuestions.length >= 5) {
+      await logDataAccess(
+        userContext.userId,
+        'question_limit_exceeded',
+        'role_questions',
+        questionData.roleId,
+        { questionCount: existingQuestions.length, endpoint: '/api/role-questions' }
+      )
+      
       return NextResponse.json(
         { success: false, message: "Maximum 5 questions allowed per role" },
         { status: 400 }
@@ -124,13 +190,22 @@ export async function POST(request: NextRequest) {
     )
 
     if (questionExists) {
+      await logDataAccess(
+        userContext.userId,
+        'duplicate_question_attempt',
+        'role_questions',
+        questionData.roleId,
+        { questionText: questionData.questionText, endpoint: '/api/role-questions' }
+      )
+      
       return NextResponse.json(
         { success: false, message: "This question already exists for this role" },
         { status: 409 }
       )
     }
 
-    const newQuestion = await createRoleQuestion({
+    // Create the question using secure function
+    const newQuestion = await createUserRoleQuestion(userContext.userId, {
       ...questionData,
       category: questionData.category || null
     })
@@ -142,6 +217,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Log successful creation
+    await logDataAccess(
+      userContext.userId,
+      'create',
+      'role_questions',
+      newQuestion.id,
+      { 
+        questionText: newQuestion.questionText,
+        category: newQuestion.category,
+        weight: newQuestion.weight,
+        roleId: newQuestion.roleId,
+        endpoint: '/api/role-questions',
+        method: 'POST'
+      }
+    )
+
     return NextResponse.json({
       success: true,
       data: newQuestion,
@@ -150,6 +241,21 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Role question creation error:', error)
+    
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      )
+    }
+    
+    if (error instanceof Error && error.message === 'User account not found or inactive') {
+      return NextResponse.json(
+        { success: false, message: "User account not found or inactive" },
+        { status: 403 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         success: false, 
@@ -164,13 +270,19 @@ export async function POST(request: NextRequest) {
 // DELETE /api/role-questions - Remove question from role
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await auth()
+    // Authenticate user and get secure context
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
+    // Apply rate limiting
+    const rateLimitResult = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response!
     }
 
     const body = await request.json()
@@ -190,17 +302,35 @@ export async function DELETE(request: NextRequest) {
 
     const { questionId } = validationResult.data
 
-    // We could add additional checks here to verify the question belongs to a role owned by the user
-    // For now, we'll rely on the database foreign key constraints and soft delete
-    
-    const deleted = await deleteRoleQuestion(questionId)
+    // Delete using secure function (includes ownership validation)
+    const deleted = await deleteUserRoleQuestion(userContext.userId, questionId)
     
     if (!deleted) {
+      await logDataAccess(
+        userContext.userId,
+        'unauthorized_delete_attempt',
+        'role_questions',
+        questionId,
+        { action: 'DELETE', endpoint: '/api/role-questions' }
+      )
+      
       return NextResponse.json(
         { success: false, message: "Question not found or already deleted" },
         { status: 404 }
       )
     }
+
+    // Log successful deletion
+    await logDataAccess(
+      userContext.userId,
+      'delete',
+      'role_questions',
+      questionId,
+      { 
+        endpoint: '/api/role-questions',
+        method: 'DELETE'
+      }
+    )
 
     return NextResponse.json({
       success: true,
@@ -209,6 +339,21 @@ export async function DELETE(request: NextRequest) {
     
   } catch (error) {
     console.error('Role question deletion error:', error)
+    
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      )
+    }
+    
+    if (error instanceof Error && error.message === 'User account not found or inactive') {
+      return NextResponse.json(
+        { success: false, message: "User account not found or inactive" },
+        { status: 403 }
+      )
+    }
+    
     return NextResponse.json(
       { 
         success: false, 

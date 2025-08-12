@@ -179,21 +179,44 @@ export async function getUserFile(userId: string, fileId: string) {
 }
 
 // EVALUATIONS - User-scoped operations
-export async function getUserEvaluations(userId: string) {
+export async function getUserEvaluations(userId: string, filters?: {
+  roleId?: string
+  status?: 'pending' | 'processing' | 'completed' | 'failed'
+  limit?: number
+  offset?: number
+}) {
   return executeUserScopedQuery(userId, async (pool, uid) => {
-    const result = await pool.request()
+    let query = `
+      SELECT 
+        es.*,
+        r.title as role_title,
+        (SELECT COUNT(*) FROM evaluation_files WHERE session_id = es.id) as file_count,
+        (SELECT COUNT(*) FROM evaluation_results WHERE session_id = es.id) as result_count
+      FROM evaluation_sessions es
+      LEFT JOIN roles r ON es.role_id = r.id
+      WHERE es.user_id = @userId
+    `
+    
+    const request = pool.request()
       .input('userId', sql.UniqueIdentifier, uid)
-      .query(`
-        SELECT 
-          es.*,
-          r.title as role_title,
-          (SELECT COUNT(*) FROM evaluation_files WHERE session_id = es.id) as file_count,
-          (SELECT COUNT(*) FROM evaluation_results WHERE session_id = es.id) as result_count
-        FROM evaluation_sessions es
-        LEFT JOIN roles r ON es.role_id = r.id
-        WHERE es.user_id = @userId
-        ORDER BY es.created_at DESC
-      `)
+    
+    if (filters?.roleId) {
+      query += ' AND es.role_id = @roleId'
+      request.input('roleId', sql.UniqueIdentifier, filters.roleId)
+    }
+    
+    if (filters?.status) {
+      query += ' AND es.status = @status'
+      request.input('status', sql.NVarChar, filters.status)
+    }
+    
+    query += ' ORDER BY es.created_at DESC'
+    
+    if (filters?.limit) {
+      query += ` OFFSET ${filters.offset || 0} ROWS FETCH NEXT ${filters.limit} ROWS ONLY`
+    }
+    
+    const result = await request.query(query)
     return result.recordset
   })
 }
@@ -279,6 +302,522 @@ export async function getUserUsageStats(userId: string) {
   })
 }
 
+// ROLE SKILLS - User-scoped operations
+export interface RoleSkill {
+  id: string
+  roleId: string
+  skillName: string
+  weight: number
+  isRequired: boolean
+  skillCategory: string | null
+  createdAt: Date
+}
+
+export async function getUserRoleSkills(userId: string, roleId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Then get the skills
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT rs.id, rs.role_id as roleId, rs.skill_name as skillName, 
+               rs.weight, rs.is_required as isRequired, rs.skill_category as skillCategory,
+               rs.created_at as createdAt
+        FROM role_skills rs
+        INNER JOIN roles r ON rs.role_id = r.id
+        WHERE rs.role_id = @roleId AND r.user_id = @userId AND r.is_active = 1
+        ORDER BY rs.weight DESC, rs.skill_name
+      `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserRoleSkill(userId: string, skillData: Omit<RoleSkill, 'id' | 'createdAt'>) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, skillData.roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Create the skill
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, skillData.roleId)
+      .input('skillName', sql.NVarChar, skillData.skillName)
+      .input('weight', sql.Int, skillData.weight)
+      .input('isRequired', sql.Bit, skillData.isRequired)
+      .input('skillCategory', sql.NVarChar, skillData.skillCategory)
+      .query(`
+        INSERT INTO role_skills (role_id, skill_name, weight, is_required, skill_category)
+        OUTPUT INSERTED.id, INSERTED.role_id as roleId, INSERTED.skill_name as skillName,
+               INSERTED.weight, INSERTED.is_required as isRequired,
+               INSERTED.skill_category as skillCategory, INSERTED.created_at as createdAt
+        VALUES (@roleId, @skillName, @weight, @isRequired, @skillCategory)
+      `)
+    
+    return result.recordset[0]
+  })
+}
+
+export async function deleteUserRoleSkill(userId: string, skillId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // Verify the skill belongs to a role owned by the user
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('skillId', sql.UniqueIdentifier, skillId)
+      .query(`
+        DELETE rs FROM role_skills rs
+        INNER JOIN roles r ON rs.role_id = r.id
+        WHERE rs.id = @skillId AND r.user_id = @userId AND r.is_active = 1
+      `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
+
+// ROLE QUESTIONS - User-scoped operations
+export interface RoleQuestion {
+  id: string
+  roleId: string
+  questionText: string
+  weight: number
+  category: string | null
+  isActive: boolean
+  createdAt: Date
+}
+
+export async function getUserRoleQuestions(userId: string, roleId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Then get the questions
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT rq.id, rq.role_id as roleId, rq.question_text as questionText,
+               rq.weight, rq.category, rq.is_active as isActive, rq.created_at as createdAt
+        FROM role_questions rq
+        INNER JOIN roles r ON rq.role_id = r.id
+        WHERE rq.role_id = @roleId AND r.user_id = @userId AND r.is_active = 1 AND rq.is_active = 1
+        ORDER BY rq.weight DESC, rq.created_at
+      `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserRoleQuestion(userId: string, questionData: Omit<RoleQuestion, 'id' | 'createdAt' | 'isActive'>) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, questionData.roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Create the question
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, questionData.roleId)
+      .input('questionText', sql.NText, questionData.questionText)
+      .input('weight', sql.Int, questionData.weight)
+      .input('category', sql.NVarChar, questionData.category)
+      .query(`
+        INSERT INTO role_questions (role_id, question_text, weight, category)
+        OUTPUT INSERTED.id, INSERTED.role_id as roleId, INSERTED.question_text as questionText,
+               INSERTED.weight, INSERTED.category, INSERTED.is_active as isActive,
+               INSERTED.created_at as createdAt
+        VALUES (@roleId, @questionText, @weight, @category)
+      `)
+    
+    return result.recordset[0]
+  })
+}
+
+export async function deleteUserRoleQuestion(userId: string, questionId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // Verify the question belongs to a role owned by the user
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('questionId', sql.UniqueIdentifier, questionId)
+      .query(`
+        UPDATE rq 
+        SET is_active = 0
+        FROM role_questions rq
+        INNER JOIN roles r ON rq.role_id = r.id
+        WHERE rq.id = @questionId AND r.user_id = @userId AND r.is_active = 1
+      `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
+
+// ROLE REQUIREMENTS - User-scoped operations
+export interface RoleRequirement {
+  id: string
+  roleId: string
+  requirementText: string
+  weight: number
+  isRequired: boolean
+  category: 'education' | 'experience' | 'other'
+  createdAt: Date
+}
+
+export async function getUserRoleRequirements(userId: string, roleId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Then get the requirements
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT rr.id, rr.roleId, rr.requirementText, rr.weight, 
+               rr.isRequired, rr.category, rr.createdAt
+        FROM role_requirements rr
+        INNER JOIN roles r ON rr.roleId = r.id
+        WHERE rr.roleId = @roleId AND r.user_id = @userId AND r.is_active = 1
+        ORDER BY rr.category, rr.weight DESC, rr.createdAt ASC
+      `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserRoleRequirement(userId: string, requirementData: Omit<RoleRequirement, 'id' | 'createdAt'>) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, requirementData.roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Create the requirement
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, requirementData.roleId)
+      .input('requirementText', sql.NText, requirementData.requirementText)
+      .input('weight', sql.Int, requirementData.weight)
+      .input('isRequired', sql.Bit, requirementData.isRequired)
+      .input('category', sql.NVarChar, requirementData.category)
+      .query(`
+        INSERT INTO role_requirements (roleId, requirementText, weight, isRequired, category, createdAt)
+        OUTPUT INSERTED.*
+        VALUES (@roleId, @requirementText, @weight, @isRequired, @category, GETUTCDATE())
+      `)
+    
+    return result.recordset[0]
+  })
+}
+
+export async function deleteUserRoleRequirement(userId: string, requirementId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // Verify the requirement belongs to a role owned by the user
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('requirementId', sql.UniqueIdentifier, requirementId)
+      .query(`
+        DELETE rr FROM role_requirements rr
+        INNER JOIN roles r ON rr.roleId = r.id
+        WHERE rr.id = @requirementId AND r.user_id = @userId AND r.is_active = 1
+      `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
+
+// UPLOAD SESSIONS - User-scoped operations
+export interface UploadSession {
+  id: string
+  userId: string
+  roleId: string | null
+  sessionToken: string
+  totalFiles: number
+  uploadedFiles: number
+  processedFiles: number
+  failedFiles: number
+  status: 'active' | 'completed' | 'failed' | 'expired'
+  createdAt: Date
+  updatedAt: Date
+  expiresAt: Date
+}
+
+export async function getUserUploadSessionByToken(userId: string, sessionToken: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('sessionToken', sql.NVarChar, sessionToken)
+      .query(`
+        SELECT id, user_id as userId, role_id as roleId, session_token as sessionToken,
+               total_files as totalFiles, uploaded_files as uploadedFiles,
+               processed_files as processedFiles, failed_files as failedFiles,
+               status, created_at as createdAt, updated_at as updatedAt, expires_at as expiresAt
+        FROM upload_sessions 
+        WHERE session_token = @sessionToken AND user_id = @userId
+      `)
+    
+    return result.recordset[0] || null
+  })
+}
+
+export async function updateUserUploadSession(userId: string, sessionId: string, updates: {
+  uploadedFiles?: number
+  processedFiles?: number
+  failedFiles?: number
+  status?: UploadSession['status']
+}) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify session belongs to user
+    const sessionCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .query(`
+        SELECT id FROM upload_sessions 
+        WHERE id = @sessionId AND user_id = @userId
+      `)
+    
+    if (sessionCheck.recordset.length === 0) {
+      throw new Error('Upload session not found or access denied')
+    }
+    
+    // Update session
+    const updateFields = []
+    const request = pool.request()
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('updatedAt', sql.DateTime2, new Date())
+    
+    if (updates.uploadedFiles !== undefined) {
+      updateFields.push('uploaded_files = @uploadedFiles')
+      request.input('uploadedFiles', sql.Int, updates.uploadedFiles)
+    }
+    
+    if (updates.processedFiles !== undefined) {
+      updateFields.push('processed_files = @processedFiles')
+      request.input('processedFiles', sql.Int, updates.processedFiles)
+    }
+    
+    if (updates.failedFiles !== undefined) {
+      updateFields.push('failed_files = @failedFiles')
+      request.input('failedFiles', sql.Int, updates.failedFiles)
+    }
+    
+    if (updates.status) {
+      updateFields.push('status = @status')
+      request.input('status', sql.NVarChar, updates.status)
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = @updatedAt')
+    
+    const result = await request.query(`
+      UPDATE upload_sessions 
+      SET ${updateFields.join(', ')}
+      WHERE id = @sessionId AND user_id = @userId
+    `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
+
+// FILES - User-scoped operations (extending existing getUserFile function)
+export interface FileRecord {
+  id: string
+  userId: string
+  roleId: string | null
+  originalFilename: string
+  blobFilename: string
+  fileSize: number
+  mimeType: string
+  blobUrl: string
+  uploadStatus: 'pending' | 'uploading' | 'completed' | 'failed'
+  processingStatus: 'not_started' | 'extracting' | 'analyzing' | 'completed' | 'failed'
+  extractedText: string | null
+  aiAnalysis: string | null
+  aiScore: number | null
+  aiDecision: 'accept' | 'maybe' | 'reject' | null
+  createdAt: Date
+  updatedAt: Date
+  isActive: boolean
+}
+
+export async function getUserFileById(userId: string, fileId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('fileId', sql.UniqueIdentifier, fileId)
+      .query(`
+        SELECT id, user_id as userId, role_id as roleId, original_filename as originalFilename,
+               blob_filename as blobFilename, file_size as fileSize, mime_type as mimeType,
+               blob_url as blobUrl, upload_status as uploadStatus, processing_status as processingStatus,
+               extracted_text as extractedText, ai_analysis as aiAnalysis, ai_score as aiScore,
+               ai_decision as aiDecision, created_at as createdAt, updated_at as updatedAt,
+               is_active as isActive
+        FROM files 
+        WHERE id = @fileId AND user_id = @userId AND is_active = 1
+      `)
+    
+    return result.recordset[0] || null
+  })
+}
+
+export async function updateUserFileStatus(userId: string, fileId: string, updates: {
+  uploadStatus?: FileRecord['uploadStatus']
+  processingStatus?: FileRecord['processingStatus']
+  extractedText?: string
+  aiAnalysis?: string
+  aiScore?: number
+  aiDecision?: FileRecord['aiDecision']
+}) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify file belongs to user
+    const fileCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('fileId', sql.UniqueIdentifier, fileId)
+      .query(`
+        SELECT id FROM files 
+        WHERE id = @fileId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (fileCheck.recordset.length === 0) {
+      throw new Error('File not found or access denied')
+    }
+    
+    // Update file
+    const updateFields = []
+    const request = pool.request()
+      .input('fileId', sql.UniqueIdentifier, fileId)
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('updatedAt', sql.DateTime2, new Date())
+    
+    if (updates.uploadStatus) {
+      updateFields.push('upload_status = @uploadStatus')
+      request.input('uploadStatus', sql.NVarChar, updates.uploadStatus)
+    }
+    
+    if (updates.processingStatus) {
+      updateFields.push('processing_status = @processingStatus')
+      request.input('processingStatus', sql.NVarChar, updates.processingStatus)
+    }
+    
+    if (updates.extractedText !== undefined) {
+      updateFields.push('extracted_text = @extractedText')
+      request.input('extractedText', sql.NText, updates.extractedText)
+    }
+    
+    if (updates.aiAnalysis !== undefined) {
+      updateFields.push('ai_analysis = @aiAnalysis')
+      request.input('aiAnalysis', sql.NText, updates.aiAnalysis)
+    }
+    
+    if (updates.aiScore !== undefined) {
+      updateFields.push('ai_score = @aiScore')
+      request.input('aiScore', sql.Decimal(5, 2), updates.aiScore)
+    }
+    
+    if (updates.aiDecision !== undefined) {
+      updateFields.push('ai_decision = @aiDecision')
+      request.input('aiDecision', sql.NVarChar, updates.aiDecision)
+    }
+    
+    if (updateFields.length === 0) return false
+    
+    updateFields.push('updated_at = @updatedAt')
+    
+    const result = await request.query(`
+      UPDATE files 
+      SET ${updateFields.join(', ')}
+      WHERE id = @fileId AND user_id = @userId AND is_active = 1
+    `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
+
+// BATCH PROCESSING - User-scoped operations
+export interface BatchProcessingSession {
+  sessionId: string
+  userId: string
+  roleId: string
+  totalFiles: number
+  processedFiles: number
+  failedFiles: number
+  startedAt: Date
+  completedAt?: Date
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+}
+
+export async function getUserBatchSession(userId: string, sessionId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('sessionId', sql.NVarChar, sessionId)
+      .query(`
+        SELECT session_id as sessionId, user_id as userId, role_id as roleId,
+               total_files as totalFiles, processed_files as processedFiles,
+               failed_files as failedFiles, started_at as startedAt,
+               completed_at as completedAt, status
+        FROM batch_sessions 
+        WHERE session_id = @sessionId AND user_id = @userId
+      `)
+    
+    return result.recordset[0] || null
+  })
+}
+
 // BULK DELETE - User-scoped with safety checks
 export async function deleteUserData(userId: string, dataType: 'all' | 'files' | 'evaluations' | 'results') {
   return executeUserScopedQuery(userId, async (pool, uid) => {
@@ -319,4 +858,93 @@ export async function deleteUserData(userId: string, dataType: 'all' | 'files' |
       throw error
     }
   })
+}
+
+// MISSING FUNCTIONS FOR COMPLETE API COVERAGE
+
+export async function createUserEvaluation(userId: string, evaluationData: {
+  name: string
+  roleId: string
+  roleTitle: string
+  files: Array<{ id: string; name: string; size: number }>
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+}) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify role belongs to user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, evaluationData.roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, evaluationData.roleId)
+      .input('name', sql.NVarChar, evaluationData.name)
+      .input('status', sql.NVarChar, evaluationData.status)
+      .input('totalFiles', sql.Int, evaluationData.files.length)
+      .query(`
+        INSERT INTO evaluation_sessions (user_id, role_id, name, status, total_files)
+        OUTPUT INSERTED.id, INSERTED.user_id as userId, INSERTED.role_id as roleId,
+               INSERTED.name, INSERTED.status, INSERTED.total_files as totalFiles,
+               INSERTED.processed_files as processedFiles, INSERTED.created_at as createdAt,
+               INSERTED.updated_at as updatedAt
+        VALUES (@userId, @roleId, @name, @status, @totalFiles)
+      `)
+    
+    return result.recordset[0]
+  })
+}
+
+// Upload Session functions
+export async function getUserUploadSession(sessionId: string, userId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .query(`
+        SELECT id, user_id as userId, role_id as roleId, session_token as sessionToken,
+               total_files as totalFiles, uploaded_files as uploadedFiles,
+               processed_files as processedFiles, failed_files as failedFiles,
+               status, created_at as createdAt, updated_at as updatedAt, expires_at as expiresAt
+        FROM upload_sessions 
+        WHERE id = @sessionId AND user_id = @userId
+      `)
+    
+    return result.recordset[0] || null
+  })
+}
+
+export async function getUserSessionFiles(sessionId: string, userId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .query(`
+        SELECT f.id, f.user_id as userId, f.role_id as roleId, 
+               f.original_filename as originalFilename, f.blob_filename as blobFilename,
+               f.file_size as fileSize, f.mime_type as mimeType, f.blob_url as blobUrl,
+               f.upload_status as uploadStatus, f.processing_status as processingStatus,
+               f.extracted_text as extractedText, f.ai_analysis as aiAnalysis,
+               f.ai_score as aiScore, f.ai_decision as aiDecision,
+               f.created_at as createdAt, f.updated_at as updatedAt
+        FROM files f
+        INNER JOIN upload_sessions us ON f.session_id = us.id
+        WHERE us.id = @sessionId AND f.user_id = @userId AND f.is_active = 1
+        ORDER BY f.created_at ASC
+      `)
+    
+    return result.recordset
+  })
+}
+
+// File operations - using existing functions with consistent parameter order
+export async function updateUserFile(fileId: string, userId: string, updates: any) {
+  return updateUserFileStatus(userId, fileId, updates)
 }

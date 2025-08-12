@@ -219,7 +219,7 @@ export function RoleCreationWizard({
       localStorage.removeItem('roleDraft')
       
       toast.success("Role created successfully!")
-      router.push('/dashboard/roles')
+      router.push('/roles')
 
     } catch (error) {
       console.error('Error creating role:', error)
@@ -251,7 +251,7 @@ export function RoleCreationWizard({
       // to handle additions, deletions, and updates
       
       toast.success("Role updated successfully!")
-      router.push('/dashboard/roles')
+      router.push('/roles')
 
     } catch (error) {
       console.error('Error updating role:', error)
