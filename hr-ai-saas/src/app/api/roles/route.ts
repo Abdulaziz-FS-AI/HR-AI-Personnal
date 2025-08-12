@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getRolesByUserId, createRole } from "@/lib/db"
-import { z } from "zod"
+import { createRoleSchema as validationSchema } from "@/lib/validations/role"
 
-const createRoleSchema = z.object({
-  title: z.string().min(2, "Title must be at least 2 characters").max(120, "Title too long"),
-  description: z.string().min(10, "Description must be at least 10 characters").max(2500, "Description too long").optional(),
-  responsibilities: z.string().max(2500, "Responsibilities too long").optional(),
-  department: z.string().max(100, "Department name too long").optional(),
-  location: z.string().max(100, "Location name too long").optional(),
-  employmentType: z.enum(["full-time", "part-time", "contract", "freelance", "internship"]).optional(),
-  seniorityLevel: z.enum(["entry", "junior", "mid", "senior", "lead", "executive"]).optional(),
-  minExperienceYears: z.number().min(0, "Experience cannot be negative").max(50, "Experience too high").optional(),
-  maxExperienceYears: z.number().min(0, "Experience cannot be negative").max(50, "Experience too high").optional(),
-  educationRequirements: z.string().max(500, "Education requirements too long").optional(),
-})
+// Use the shared validation schema
+const createRoleSchema = validationSchema
 
 // GET /api/roles - List all roles for authenticated user
 export async function GET(request: NextRequest) {

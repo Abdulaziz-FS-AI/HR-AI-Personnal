@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getRoleById, getRoleSkills, createRoleSkill, deleteRoleSkill } from "@/lib/db"
+import { skillSchema } from "@/lib/validations/role"
 import { z } from "zod"
 
-const createSkillSchema = z.object({
-  roleId: z.string().uuid("Invalid role ID"),
-  skillName: z.string().min(1, "Skill name is required").max(100, "Skill name too long"),
-  weight: z.number().min(1, "Weight must be at least 1").max(10, "Weight cannot exceed 10"),
-  isRequired: z.boolean().default(false),
-  skillCategory: z.string().max(50, "Category name too long").optional(),
-})
+// Use the shared validation schema
+const createSkillSchema = skillSchema
 
 const deleteSkillSchema = z.object({
   skillId: z.string().uuid("Invalid skill ID"),

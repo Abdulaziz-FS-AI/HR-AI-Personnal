@@ -1,5 +1,5 @@
 import sql from 'mssql'
-import { getDbConnection } from './db-config'
+import { getDbConnection } from './db'
 
 export interface RoleRequirement {
   id: string

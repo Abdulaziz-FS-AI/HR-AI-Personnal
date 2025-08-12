@@ -4,8 +4,7 @@ import { z } from "zod"
 export const roleSchema = z.object({
   title: z.string()
     .min(2, "Title must be at least 2 characters")
-    .max(120, "Title cannot exceed 120 characters")
-    .regex(/^[a-zA-Z0-9\s\-\.\/\(\)]+$/, "Title contains invalid characters"),
+    .max(120, "Title cannot exceed 120 characters"),
   
   description: z.string()
     .min(10, "Description must be at least 10 characters")
@@ -74,7 +73,6 @@ export const createRoleSchema = roleSchema.extend({
   title: z.string()
     .min(2, "Title is required and must be at least 2 characters")
     .max(120, "Title cannot exceed 120 characters")
-    .regex(/^[a-zA-Z0-9\s\-\.\/\(\)]+$/, "Title contains invalid characters")
 })
 
 // Update role schema (all fields optional except validation rules)
@@ -84,8 +82,7 @@ export const updateRoleSchema = roleSchema.partial()
 export const skillSchema = z.object({
   skillName: z.string()
     .min(1, "Skill name is required")
-    .max(100, "Skill name cannot exceed 100 characters")
-    .regex(/^[a-zA-Z0-9\s\-\.\/\+\#\(\)]+$/, "Skill name contains invalid characters"),
+    .max(100, "Skill name cannot exceed 100 characters"),
   
   weight: z.number()
     .min(1, "Weight must be between 1 and 10")
@@ -115,19 +112,8 @@ export const bulkSkillsSchema = z.object({
 // Question validation schema
 export const questionSchema = z.object({
   questionText: z.string()
-    .min(10, "Question must be at least 10 characters")
-    .max(300, "Question cannot exceed 300 characters")
-    .refine((text) => {
-      // Ensure question ends with a question mark or has clear question words
-      const questionWords = ['what', 'how', 'why', 'when', 'where', 'which', 'who', 'describe', 'explain', 'tell']
-      const hasQuestionMark = text.trim().endsWith('?')
-      const hasQuestionWord = questionWords.some(word => 
-        text.toLowerCase().includes(word)
-      )
-      return hasQuestionMark || hasQuestionWord
-    }, {
-      message: "Question should end with '?' or contain question words like 'what', 'how', 'describe', etc."
-    }),
+    .min(5, "Question must be at least 5 characters")
+    .max(200, "Question cannot exceed 200 characters"),
   
   weight: z.number()
     .min(1, "Weight must be between 1 and 10")
@@ -148,7 +134,7 @@ export const createQuestionSchema = questionSchema
 export const bulkQuestionsSchema = z.object({
   roleId: z.string().uuid("Invalid role ID"),
   questions: z.array(questionSchema.omit({ roleId: true }))
-    .max(15, "Maximum 15 questions allowed per role")
+    .max(5, "Maximum 5 questions allowed per role")
 })
 
 // Complete role with skills and questions schema (for complex forms)
@@ -158,7 +144,7 @@ export const completeRoleSchema = z.object({
     .min(1, "At least one skill is required")
     .max(50, "Maximum 50 skills allowed per role"),
   questions: z.array(questionSchema.omit({ roleId: true }))
-    .max(15, "Maximum 15 questions allowed per role")
+    .max(5, "Maximum 5 questions allowed per role")
     .optional()
 })
 
@@ -166,8 +152,7 @@ export const completeRoleSchema = z.object({
 export const jobDetailsStepSchema = z.object({
   title: z.string()
     .min(2, "Title is required and must be at least 2 characters")
-    .max(120, "Title cannot exceed 120 characters")
-    .regex(/^[a-zA-Z0-9\s\-\.\/\(\)]+$/, "Title contains invalid characters"),
+    .max(120, "Title cannot exceed 120 characters"),
   
   description: z.string()
     .min(10, "Description must be at least 10 characters")
@@ -192,7 +177,6 @@ export const skillsStepSchema = z.object({
   skills: z.array(z.object({
     skillName: z.string()
       .max(100, "Skill name cannot exceed 100 characters")
-      .regex(/^[a-zA-Z0-9\s\-\.\/\+\#\(\)]*$/, "Skill name contains invalid characters")
       .optional()
       .or(z.literal("")), // Allow empty strings
     
@@ -207,18 +191,36 @@ export const skillsStepSchema = z.object({
       .max(50, "Category name cannot exceed 50 characters")
       .optional(),
   }))
-  .max(15, "Maximum 15 skills allowed per role")
+  .max(10, "Maximum 10 skills allowed per role")
   .refine((skills) => {
     // Count required skills (filter out empty skills first)
     const validSkills = skills.filter(skill => skill.skillName && skill.skillName.trim() !== "")
     const requiredSkills = validSkills.filter(skill => skill.isRequired)
-    return requiredSkills.length <= 10
+    return requiredSkills.length <= 5
   }, {
-    message: "Maximum 10 required skills allowed per role",
+    message: "Maximum 5 required skills allowed per role",
     path: ["skills"]
   })
 })
-export const questionsStepSchema = bulkQuestionsSchema.omit({ roleId: true })
+// Questions step schema (for form step validation)
+export const questionsStepSchema = z.object({
+  questions: z.array(z.object({
+    questionText: z.string()
+      .min(5, "Question must be at least 5 characters")
+      .max(200, "Question cannot exceed 200 characters"),
+    
+    weight: z.number()
+      .min(1, "Weight must be between 1 and 10")
+      .max(10, "Weight must be between 1 and 10")
+      .int("Weight must be a whole number"),
+    
+    category: z.string()
+      .max(50, "Category name cannot exceed 50 characters")
+      .optional(),
+  }))
+  .max(5, "Maximum 5 questions allowed per role")
+  .optional()
+})
 
 // Predefined skill categories
 export const skillCategories = [

@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getRoleById, getRoleQuestions, createRoleQuestion, deleteRoleQuestion } from "@/lib/db"
+import { questionSchema } from "@/lib/validations/role"
 import { z } from "zod"
 
-const createQuestionSchema = z.object({
-  roleId: z.string().uuid("Invalid role ID"),
-  questionText: z.string().min(10, "Question must be at least 10 characters").max(300, "Question too long"),
-  weight: z.number().min(1, "Weight must be at least 1").max(10, "Weight cannot exceed 10"),
-  category: z.string().max(50, "Category name too long").optional(),
-})
+// Use the shared validation schema
+const createQuestionSchema = questionSchema
 
 const deleteQuestionSchema = z.object({
   questionId: z.string().uuid("Invalid question ID"),
@@ -112,11 +109,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check question limit (max 20 questions per role)
+    // Check question limit (max 5 questions per role)
     const existingQuestions = await getRoleQuestions(questionData.roleId)
-    if (existingQuestions.length >= 20) {
+    if (existingQuestions.length >= 5) {
       return NextResponse.json(
-        { success: false, message: "Maximum 20 questions allowed per role" },
+        { success: false, message: "Maximum 5 questions allowed per role" },
         { status: 400 }
       )
     }

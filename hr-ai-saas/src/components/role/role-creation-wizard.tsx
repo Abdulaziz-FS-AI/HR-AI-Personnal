@@ -180,6 +180,7 @@ export function RoleCreationWizard({
           if (!response.ok) {
             const errorData = await response.json()
             console.error('Skill creation error:', errorData)
+            throw new Error(`Failed to create skill: ${errorData.message}`)
           }
           
           return response
@@ -190,8 +191,8 @@ export function RoleCreationWizard({
 
       // 4. Add questions (if any)
       if (roleData.questions.length > 0) {
-        const questionPromises = roleData.questions.map(question =>
-          fetch('/api/role-questions', {
+        const questionPromises = roleData.questions.map(async question => {
+          const response = await fetch('/api/role-questions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -201,7 +202,15 @@ export function RoleCreationWizard({
               roleId: createdRole.id
             }),
           })
-        )
+          
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error('Question creation error:', errorData)
+            throw new Error(`Failed to create question: ${errorData.message}`)
+          }
+          
+          return response
+        })
 
         await Promise.all(questionPromises)
       }
