@@ -83,7 +83,7 @@ export function RequirementsMatrix({
     }
   })
 
-  const { control, handleSubmit, watch, formState: { errors, isValid } } = form
+  const { control, handleSubmit, watch, setValue, formState: { errors, isValid } } = form
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -292,22 +292,34 @@ export function RequirementsMatrix({
                             <Controller
                               name={`requirements.${fieldIndex}.weight`}
                               control={control}
-                              render={({ field }) => (
-                                <div className="space-y-2">
-                                  <Slider
-                                    value={[field.value]}
-                                    onValueChange={(value) => field.onChange(value[0])}
-                                    max={10}
-                                    min={1}
-                                    step={1}
-                                    className="w-full"
-                                  />
-                                  <div className="flex justify-between text-xs text-gray-500">
-                                    <span>Low</span>
-                                    <span>High</span>
+                              render={({ field }) => {
+                                const isRequired = watchedRequirements[fieldIndex]?.isRequired || false
+                                return (
+                                  <div className="space-y-2">
+                                    <Slider
+                                      value={[field.value]}
+                                      onValueChange={(value) => {
+                                        if (isRequired) return // Don't allow changes when required
+                                        field.onChange(value[0])
+                                      }}
+                                      max={10}
+                                      min={1}
+                                      step={1}
+                                      disabled={isRequired}
+                                      className={`w-full ${isRequired ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                    />
+                                    <div className="flex justify-between text-xs text-gray-500">
+                                      <span>Low</span>
+                                      <span>High</span>
+                                    </div>
+                                    {isRequired && (
+                                      <div className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded border border-red-200">
+                                        🔒 Locked at 10 (Required)
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
-                              )}
+                                )
+                              }}
                             />
                           </div>
 
@@ -322,7 +334,17 @@ export function RequirementsMatrix({
                                   type="button"
                                   variant={field.value ? "default" : "outline"}
                                   size="sm"
-                                  onClick={() => field.onChange(!field.value)}
+                                  onClick={() => {
+                                    const newValue = !field.value
+                                    field.onChange(newValue)
+                                    // If required is checked, set weight to 10
+                                    if (newValue) {
+                                      setValue(`requirements.${fieldIndex}.weight`, 10)
+                                    } else {
+                                      // If unchecked, set to reasonable default
+                                      setValue(`requirements.${fieldIndex}.weight`, 7)
+                                    }
+                                  }}
                                   className="w-full"
                                 >
                                   {field.value ? "Required" : "Optional"}

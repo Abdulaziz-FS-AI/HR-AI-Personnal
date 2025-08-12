@@ -292,3 +292,105 @@ export async function deleteRole(roleId: string): Promise<boolean> {
     throw error
   }
 }
+
+export async function createRoleSkill(data: {
+  roleId: string
+  skillName: string
+  weight: number
+  isRequired: boolean
+  skillCategory?: string | null
+}): Promise<RoleSkill> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, data.roleId)
+      .input('skillName', sql.NVarChar, data.skillName)
+      .input('weight', sql.Int, data.weight)
+      .input('isRequired', sql.Bit, data.isRequired)
+      .input('skillCategory', sql.NVarChar, data.skillCategory || null)
+      .query(`
+        INSERT INTO role_skills (
+          role_id, skill_name, weight, is_required, skill_category
+        )
+        OUTPUT inserted.id, inserted.role_id as roleId, inserted.skill_name as skillName,
+               inserted.weight, inserted.is_required as isRequired, 
+               inserted.skill_category as skillCategory,
+               inserted.created_at as createdAt, inserted.updated_at as updatedAt
+        VALUES (
+          @roleId, @skillName, @weight, @isRequired, @skillCategory
+        )
+      `)
+    
+    return result.recordset[0]
+  } catch (error) {
+    console.error('Error creating role skill:', error)
+    throw error
+  }
+}
+
+export async function deleteRoleSkill(skillId: string): Promise<boolean> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('skillId', sql.UniqueIdentifier, skillId)
+      .query(`
+        DELETE FROM role_skills
+        WHERE id = @skillId
+      `)
+    
+    return result.rowsAffected[0] > 0
+  } catch (error) {
+    console.error('Error deleting role skill:', error)
+    throw error
+  }
+}
+
+export async function createRoleQuestion(data: {
+  roleId: string
+  questionText: string
+  weight: number
+  category?: string | null
+}): Promise<RoleQuestion> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, data.roleId)
+      .input('questionText', sql.NVarChar, data.questionText)
+      .input('weight', sql.Int, data.weight)
+      .input('category', sql.NVarChar, data.category || null)
+      .query(`
+        INSERT INTO role_questions (
+          role_id, question_text, weight, category
+        )
+        OUTPUT inserted.id, inserted.role_id as roleId, 
+               inserted.question_text as questionText,
+               inserted.weight, inserted.category,
+               inserted.created_at as createdAt, inserted.updated_at as updatedAt
+        VALUES (
+          @roleId, @questionText, @weight, @category
+        )
+      `)
+    
+    return result.recordset[0]
+  } catch (error) {
+    console.error('Error creating role question:', error)
+    throw error
+  }
+}
+
+export async function deleteRoleQuestion(questionId: string): Promise<boolean> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('questionId', sql.UniqueIdentifier, questionId)
+      .query(`
+        DELETE FROM role_questions
+        WHERE id = @questionId
+      `)
+    
+    return result.rowsAffected[0] > 0
+  } catch (error) {
+    console.error('Error deleting role question:', error)
+    throw error
+  }
+}

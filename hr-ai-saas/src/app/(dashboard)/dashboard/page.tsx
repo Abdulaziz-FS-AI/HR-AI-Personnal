@@ -43,13 +43,13 @@ export default async function DashboardPage() {
           <CardHeader>
             <CardTitle>Start Evaluation</CardTitle>
             <CardDescription>
-              Upload resumes and get AI-powered candidate analysis
+              Select a role and upload resumes for AI-powered analysis
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/resumes/upload">
+            <Link href="/evaluations/create">
               <Button className="w-full">
-                Upload Resumes
+                Start New Evaluation
               </Button>
             </Link>
           </CardContent>
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
-                <span className="text-sm text-gray-600">Upload and analyze resumes</span>
+                <span className="text-sm text-gray-600">Start evaluation with resumes</span>
               </div>
             </div>
           </CardContent>

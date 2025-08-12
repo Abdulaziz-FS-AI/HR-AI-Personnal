@@ -5,7 +5,7 @@ import { z } from "zod"
 
 const createQuestionSchema = z.object({
   roleId: z.string().uuid("Invalid role ID"),
-  questionText: z.string().min(10, "Question must be at least 10 characters").max(1000, "Question too long"),
+  questionText: z.string().min(10, "Question must be at least 10 characters").max(300, "Question too long"),
   weight: z.number().min(1, "Weight must be at least 1").max(10, "Weight cannot exceed 10"),
   category: z.string().max(50, "Category name too long").optional(),
 })

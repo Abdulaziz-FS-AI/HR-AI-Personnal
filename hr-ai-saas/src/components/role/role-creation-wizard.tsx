@@ -122,16 +122,10 @@ export function RoleCreationWizard({
 
     setIsLoading(true)
     try {
-      // 1. Create the role - expand JobDetailsStep to full CreateRole format
-      const fullRoleData = {
-        ...roleData.job,
-        // Add optional fields that may be needed by the API
-        employmentType: null,
-        seniorityLevel: null,
-        minExperienceYears: null,
-        maxExperienceYears: null,
-        educationRequirements: null
-      }
+      // 1. Create the role - send only the job details we have
+      const fullRoleData = roleData.job
+      
+      console.log('Creating role with data:', fullRoleData)
       
       const roleResponse = await fetch('/api/roles', {
         method: 'POST',
@@ -141,8 +135,11 @@ export function RoleCreationWizard({
         body: JSON.stringify(fullRoleData),
       })
 
+      console.log('Role creation response status:', roleResponse.status)
+
       if (!roleResponse.ok) {
         const errorData = await roleResponse.json()
+        console.error('Role creation error:', errorData)
         throw new Error(errorData.message || 'Failed to create role')
       }
 
@@ -167,20 +164,29 @@ export function RoleCreationWizard({
       }
 
       // 3. Add skills
-      const skillPromises = roleData.skills.map(skill =>
-        fetch('/api/role-skills', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...skill,
-            roleId: createdRole.id
-          }),
+      if (roleData.skills.length > 0) {
+        const skillPromises = roleData.skills.map(async (skill) => {
+          const response = await fetch('/api/role-skills', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ...skill,
+              roleId: createdRole.id
+            }),
+          })
+          
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error('Skill creation error:', errorData)
+          }
+          
+          return response
         })
-      )
 
-      await Promise.all(skillPromises)
+        await Promise.all(skillPromises)
+      }
 
       // 4. Add questions (if any)
       if (roleData.questions.length > 0) {

@@ -38,12 +38,6 @@ export default async function DashboardLayout({
                   Job Roles
                 </Link>
                 <Link
-                  href="/resumes"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Resume Library
-                </Link>
-                <Link
                   href="/evaluations"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >

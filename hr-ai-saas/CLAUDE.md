@@ -32,14 +32,14 @@ HR AI SaaS application for automated resume screening and candidate evaluation u
 - **Azure Computer Vision OCR** fallback for scanned documents
 
 #### 3. Database Schema (Azure SQL)
-- **uploaded_files**: File metadata and processing status
-- **roles**: Job role definitions with skills and questions
-- **role_skills**: Dynamic skills with weights (1-10) and categories
-- **role_questions**: Dynamic questions with weights and categories
-- **batch_sessions**: Processing session tracking
-- **resume_analysis_results**: AI analysis results storage
-- **skills_analysis**: Detailed skill matching results
-- **questions_analysis**: Question-based evaluation results
+- **users**: User accounts and authentication
+- **roles**: Job role definitions
+- **role_skills**: Skills with weights (1-10) and required flag
+- **role_questions**: Custom evaluation questions with weights
+- **evaluation_sessions**: Evaluation tracking with status
+- **evaluation_files**: Files uploaded per evaluation
+- **evaluation_results**: AI analysis results per candidate
+- **role_requirements**: Education, experience, other requirements
 
 #### 4. Hyperbolic.xyz AI Integration
 - **API Integration** using meta-llama/Llama-3.1-8B-Instruct model
@@ -317,49 +317,45 @@ The system is now capable of processing bulk resumes (up to 150 at a time) with 
 - Error handling implemented
 - Security best practices followed
 
-## 🔄 IMPROVED DASHBOARD STRUCTURE PLAN
+## ✅ ARCHITECTURE IMPROVEMENTS (COMPLETED)
 
-### 📋 Current Structure Issues:
-- Upload is nested under each role (`/roles/[id]/upload`)
-- Creates confusion about workflow
-- Makes bulk processing less intuitive
-- Harder to track files across multiple roles
+### 🎯 Key Architectural Changes:
+- **REMOVED** standalone Resume Library - files are NOT stored separately
+- **INTEGRATED** file upload directly into evaluation flow
+- **SIMPLIFIED** workflow - no confusion about where files belong
+- **SCOPED** files to specific evaluation sessions
+- **IMPROVED** data model with evaluation_sessions, evaluation_files, and evaluation_results tables
 
-### 🚀 Proposed New Dashboard Navigation:
+### 📋 Previous Issues (RESOLVED):
+- ~~Upload is nested under each role (`/roles/[id]/upload`)~~
+- ~~Creates confusion about workflow~~
+- ~~Makes bulk processing less intuitive~~
+- ~~Harder to track files across multiple roles~~
+
+### ✅ IMPLEMENTED Dashboard Navigation:
 ```
 Dashboard Sidebar:
-├── 📊 Overview
-├── 🎯 Roles                    ← Role Management Only
+├── 📊 Dashboard               ← Overview & Quick Actions
+├── 🎯 Job Roles               ← Role Management
 │   ├── All Roles
 │   ├── Create Role
 │   └── [Role Details/Edit]
-├── 📁 Resume Library           ← NEW: Centralized File Management
-│   ├── All Resumes
-│   ├── Upload Resumes
-│   ├── Processing Queue
-│   └── File Archive
-├── 🔬 Analysis                 ← NEW: Analysis Hub
-│   ├── Start Analysis
-│   ├── Active Sessions
-│   └── Analysis History
-├── 📊 Results                  ← Results & Reports
-│   ├── Overview
-│   ├── All Results
-│   ├── By Role
-│   └── Export Center
-├── 📈 Analytics
-└── ⚙️ Settings
+├── 🔬 Evaluations            ← Evaluation Center
+│   ├── All Evaluations
+│   ├── Create New           ← Select Role → Upload Files → Evaluate
+│   └── [Session Results]
+├── 📈 Analytics              ← Insights & Reports
+└── ⚙️ Settings               ← User Preferences
 ```
 
-### 🔄 Improved User Journey:
-**Current Workflow (Confusing):**
-1. Create Role → Go to Role → Upload tab → Upload files → Process for that role only
-
-**New Workflow (Intuitive):**
-1. **Upload Phase**: Resume Library → Bulk upload 150+ resumes
-2. **Role Setup**: Roles → Create/configure job roles with skills
-3. **Analysis**: Analysis Hub → Select role + resumes → Start processing
-4. **Review**: Results → Review candidates, export reports
+### 🔄 Implemented User Journey:
+**NEW Simplified Workflow:**
+1. **Role Setup**: Create/configure job roles with skills and questions
+2. **Start Evaluation**: Go to Evaluations → Create New
+3. **Select Role**: Choose which role to evaluate for
+4. **Upload Resumes**: Upload PDFs directly in evaluation flow
+5. **Process**: Start evaluation to analyze resumes
+6. **Review Results**: View scored candidates and insights
 
 ### 📁 Section Breakdown:
 

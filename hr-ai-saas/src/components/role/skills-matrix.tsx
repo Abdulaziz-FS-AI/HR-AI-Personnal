@@ -245,14 +245,14 @@ export function SkillsMatrix({
                                   setValue(`skills.${index}.isRequired`, false)
                                 }
                               }}
-                              className={`w-full h-2 rounded-lg appearance-none ${
+                              className={`w-full h-2 rounded-lg appearance-none transition-all ${
                                 isRequired 
-                                  ? 'bg-gray-300 cursor-not-allowed opacity-50' 
+                                  ? 'bg-gray-400 cursor-not-allowed opacity-60' 
                                   : 'bg-gray-200 cursor-pointer hover:bg-gray-300'
                               }`}
                               style={{
                                 background: isRequired
-                                  ? 'linear-gradient(to right, #9CA3AF 0%, #9CA3AF 100%)'
+                                  ? 'linear-gradient(to right, #6B7280 0%, #6B7280 100%)'
                                   : `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(field.value / 10) * 100}%, #E5E7EB ${(field.value / 10) * 100}%, #E5E7EB 100%)`
                               }}
                             />
@@ -265,7 +265,7 @@ export function SkillsMatrix({
                         <span>10</span>
                       </div>
                       {watchedSkills[index]?.isRequired && (
-                        <div className="text-xs text-red-600 mt-1 font-medium">
+                        <div className="text-xs text-red-600 mt-1 font-medium bg-red-50 px-2 py-1 rounded border border-red-200">
                           🔒 Locked at 10 (Required skill)
                         </div>
                       )}
@@ -325,6 +325,9 @@ export function SkillsMatrix({
                           // If required is checked, set weight to 10
                           if (isChecked) {
                             setValue(`skills.${index}.weight`, 10)
+                          } else {
+                            // If unchecked, allow user to change weight again (set to reasonable default)
+                            setValue(`skills.${index}.weight`, 7)
                           }
                         }}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"

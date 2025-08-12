@@ -479,3 +479,73 @@ export async function deleteRoleQuestion(questionId: string): Promise<boolean> {
     return false
   }
 }
+
+export async function getRoleSkills(roleId: string): Promise<any[]> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT id, role_id as roleId, skill_name as skillName, weight, 
+               is_required as isRequired, skill_category as skillCategory,
+               created_at as createdAt
+        FROM role_skills
+        WHERE role_id = @roleId AND is_active = 1
+        ORDER BY weight DESC, skill_name ASC
+      `)
+    
+    return result.recordset || []
+  } catch (error) {
+    console.error('Database error:', error)
+    return []
+  }
+}
+
+export async function createRoleSkill(skillData: {
+  roleId: string
+  skillName: string
+  weight: number
+  isRequired: boolean
+  skillCategory?: string | null
+}): Promise<any | null> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, skillData.roleId)
+      .input('skillName', sql.NVarChar, skillData.skillName)
+      .input('weight', sql.Int, skillData.weight)
+      .input('isRequired', sql.Bit, skillData.isRequired)
+      .input('skillCategory', sql.NVarChar, skillData.skillCategory || null)
+      .query(`
+        INSERT INTO role_skills (role_id, skill_name, weight, is_required, skill_category)
+        OUTPUT INSERTED.id, INSERTED.role_id as roleId, INSERTED.skill_name as skillName,
+               INSERTED.weight, INSERTED.is_required as isRequired, 
+               INSERTED.skill_category as skillCategory,
+               INSERTED.created_at as createdAt
+        VALUES (@roleId, @skillName, @weight, @isRequired, @skillCategory)
+      `)
+    
+    return result.recordset[0] || null
+  } catch (error) {
+    console.error('Database error:', error)
+    return null
+  }
+}
+
+export async function deleteRoleSkill(skillId: string): Promise<boolean> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('skillId', sql.UniqueIdentifier, skillId)
+      .query(`
+        UPDATE role_skills 
+        SET is_active = 0
+        WHERE id = @skillId
+      `)
+    
+    return result.rowsAffected[0] > 0
+  } catch (error) {
+    console.error('Database error:', error)
+    return false
+  }
+}

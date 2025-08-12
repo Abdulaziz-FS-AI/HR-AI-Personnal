@@ -4,16 +4,16 @@ import { getRolesByUserId, createRole } from "@/lib/db"
 import { z } from "zod"
 
 const createRoleSchema = z.object({
-  title: z.string().min(2, "Title must be at least 2 characters").max(255, "Title too long"),
-  description: z.string().min(10, "Description must be at least 10 characters").max(5000, "Description too long").optional(),
-  responsibilities: z.string().max(5000, "Responsibilities too long").optional(),
+  title: z.string().min(2, "Title must be at least 2 characters").max(120, "Title too long"),
+  description: z.string().min(10, "Description must be at least 10 characters").max(2500, "Description too long").optional(),
+  responsibilities: z.string().max(2500, "Responsibilities too long").optional(),
   department: z.string().max(100, "Department name too long").optional(),
   location: z.string().max(100, "Location name too long").optional(),
   employmentType: z.enum(["full-time", "part-time", "contract", "freelance", "internship"]).optional(),
   seniorityLevel: z.enum(["entry", "junior", "mid", "senior", "lead", "executive"]).optional(),
   minExperienceYears: z.number().min(0, "Experience cannot be negative").max(50, "Experience too high").optional(),
   maxExperienceYears: z.number().min(0, "Experience cannot be negative").max(50, "Experience too high").optional(),
-  educationRequirements: z.string().max(1000, "Education requirements too long").optional(),
+  educationRequirements: z.string().max(500, "Education requirements too long").optional(),
 })
 
 // GET /api/roles - List all roles for authenticated user
