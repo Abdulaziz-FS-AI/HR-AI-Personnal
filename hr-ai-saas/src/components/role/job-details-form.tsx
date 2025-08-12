@@ -34,8 +34,6 @@ export function JobDetailsForm({
       title: initialData?.title || "",
       description: initialData?.description || "",
       responsibilities: initialData?.responsibilities || "",
-      department: initialData?.department || "",
-      location: initialData?.location || "",
     }
   })
 
@@ -84,39 +82,6 @@ export function JobDetailsForm({
             {errors.title && (
               <p className="text-sm text-red-500">{errors.title.message}</p>
             )}
-          </div>
-
-          {/* Two column layout for department and location */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="department" className="text-sm font-medium">
-                Department
-              </Label>
-              <Input
-                id="department"
-                placeholder="e.g., Engineering"
-                {...register("department")}
-                className={errors.department ? "border-red-500" : ""}
-              />
-              {errors.department && (
-                <p className="text-sm text-red-500">{errors.department.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="location" className="text-sm font-medium">
-                Location
-              </Label>
-              <Input
-                id="location"
-                placeholder="e.g., Remote, New York, NY"
-                {...register("location")}
-                className={errors.location ? "border-red-500" : ""}
-              />
-              {errors.location && (
-                <p className="text-sm text-red-500">{errors.location.message}</p>
-              )}
-            </div>
           </div>
 
 

@@ -82,7 +82,7 @@ export const updateRoleSchema = roleSchema.partial()
 export const skillSchema = z.object({
   skillName: z.string()
     .min(1, "Skill name is required")
-    .max(100, "Skill name cannot exceed 100 characters"),
+    .max(200, "Skill name cannot exceed 200 characters"),
   
   weight: z.number()
     .min(1, "Weight must be between 1 and 10")
@@ -162,21 +162,13 @@ export const jobDetailsStepSchema = z.object({
   responsibilities: z.string()
     .max(2500, "Responsibilities cannot exceed 2500 characters")
     .optional(),
-  
-  department: z.string()
-    .max(100, "Department name cannot exceed 100 characters")
-    .optional(),
-  
-  location: z.string()
-    .max(100, "Location cannot exceed 100 characters")
-    .optional(),
 })
 
 // Skill schema for form steps (with enforced limits)
 export const skillsStepSchema = z.object({
   skills: z.array(z.object({
     skillName: z.string()
-      .max(100, "Skill name cannot exceed 100 characters")
+      .max(200, "Skill name cannot exceed 200 characters")
       .optional()
       .or(z.literal("")), // Allow empty strings
     
