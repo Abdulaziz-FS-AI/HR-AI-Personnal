@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireUserContext, checkUserQuota, logDataAccess, validateResourceOwnership } from "@/lib/security/user-context"
-import { withRateLimit } from "@/lib/security/rate-limit"
+import { auth } from "@/lib/auth"
 import { z } from "zod"
 import { getBlobStorageService } from "@/lib/azure/blob-storage"
 import { getServiceBusService } from "@/lib/azure/service-bus"
 import { createUploadSession, createFile, addToProcessingQueue } from "@/lib/db-files"
-import { getUserRole } from "@/lib/db-secure"
+import { getRoleById } from "@/lib/db"
 import { randomBytes } from "crypto"
 
 const initiateUploadSchema = z.object({
@@ -31,17 +30,14 @@ interface InitiateUploadResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    // Secure user context validation
-    const userContext = await requireUserContext(request)
+    const session = await auth()
     
-    // Apply rate limiting for upload endpoint
-    const rateLimitCheck = await withRateLimit(
-      request,
-      userContext.userId,
-      userContext.subscriptionTier,
-      'upload'
-    )
-    if (!rateLimitCheck.allowed) return rateLimitCheck.response
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { success: false, message: "Authentication required" },
+        { status: 401 }
+      )
+    }
 
     const body = await request.json()
     
@@ -60,60 +56,10 @@ export async function POST(request: NextRequest) {
 
     const { files, roleId } = validationResult.data
 
-    // Check user quota for files
-    const fileQuota = await checkUserQuota(userContext.userId, 'files')
-    if (!fileQuota.allowed) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: `File limit reached (${fileQuota.current}/${fileQuota.limit}). Please delete old files or upgrade your plan.`,
-          quota: fileQuota
-        },
-        { status: 429 }
-      )
-    }
-
-    // Check if adding these files would exceed quota
-    if (fileQuota.current + files.length > fileQuota.limit) {
-      const remaining = fileQuota.limit - fileQuota.current
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: `Cannot upload ${files.length} files. You have ${remaining} slots remaining out of ${fileQuota.limit}.`,
-          quota: fileQuota
-        },
-        { status: 429 }
-      )
-    }
-
-    // Check storage quota
-    const totalSize = files.reduce((sum, file) => sum + file.size, 0)
-    const storageMB = totalSize / 1048576
-    const storageQuota = await checkUserQuota(userContext.userId, 'storage')
-    
-    if (!storageQuota.allowed || (storageQuota.current + storageMB) > storageQuota.limit) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: `Storage limit would be exceeded. Current: ${storageQuota.current}MB, Limit: ${storageQuota.limit}MB`,
-          quota: storageQuota
-        },
-        { status: 429 }
-      )
-    }
-
-    // Verify role ownership if roleId is provided
+    // Verify role belongs to user if roleId is provided
     if (roleId) {
-      const hasAccess = await validateResourceOwnership(roleId, userContext.userId, 'role')
-      if (!hasAccess) {
-        await logDataAccess(
-          userContext.userId,
-          'UNAUTHORIZED_ACCESS_ATTEMPT',
-          'role',
-          roleId,
-          { action: 'UPLOAD_TO_ROLE' }
-        )
-        
+      const role = await getRoleById(roleId, session.user.id)
+      if (!role) {
         return NextResponse.json(
           { success: false, message: "Role not found or access denied" },
           { status: 404 }
@@ -152,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     // Create upload session
     const uploadSession = await createUploadSession({
-      userId: userContext.userId,
+      userId: session.user.id,
       roleId: roleId || null,
       sessionToken,
       totalFiles: files.length,
@@ -173,17 +119,17 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       try {
-        // Generate upload URL with user isolation
+        // Generate upload URL
         const uploadUrlResponse = await blobService.generateUploadUrl({
           fileName: file.filename,
-          userId: userContext.userId,
+          userId: session.user.id,
           fileSize: file.size,
           contentType: file.type
         })
 
         // Create file record in database
         const fileRecord = await createFile({
-          userId: userContext.userId,
+          userId: session.user.id,
           roleId: roleId || null,
           originalFilename: file.filename,
           blobFilename: uploadUrlResponse.blobName,
@@ -228,19 +174,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Log upload initiation
-    await logDataAccess(
-      userContext.userId,
-      'INITIATE_UPLOAD',
-      'upload_session',
-      uploadSession.id,
-      { 
-        fileCount: files.length,
-        totalSize: totalSize,
-        roleId: roleId
-      }
-    )
-
     const response: InitiateUploadResponse = {
       sessionId: uploadSession.id,
       sessionToken: uploadSession.sessionToken,
@@ -251,30 +184,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: response,
-      message: `Upload session created for ${files.length} files`,
-      quota: {
-        files: {
-          used: fileQuota.current + files.length,
-          limit: fileQuota.limit
-        },
-        storage: {
-          used: Math.round(storageQuota.current + storageMB),
-          limit: storageQuota.limit
-        }
-      }
+      message: `Upload session created for ${files.length} files`
     })
 
   } catch (error) {
     console.error('Upload initiation error:', error)
-    
-    // Check if it's an authentication error
-    if (error instanceof Error && error.message.includes('Authentication')) {
-      return NextResponse.json(
-        { success: false, message: error.message },
-        { status: 401 }
-      )
-    }
-    
     return NextResponse.json(
       { 
         success: false, 

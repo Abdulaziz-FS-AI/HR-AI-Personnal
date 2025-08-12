@@ -178,17 +178,22 @@ class BlobStorageService {
   }
 
   /**
-   * Generate a unique blob name with timestamp and user isolation
+   * Generate a unique blob name with enhanced user isolation and organization
    */
   private generateBlobName(originalFileName: string, userId: string): string {
     const timestamp = Date.now()
+    const date = new Date()
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    
     const sanitizedFileName = originalFileName
       .replace(/[^a-zA-Z0-9\-_\.]/g, '-')
       .replace(/\s+/g, '-')
       .toLowerCase()
     
-    // Format: userId/timestamp-filename.ext
-    return `${userId}/${timestamp}-${sanitizedFileName}`
+    // Enhanced structure: users/{userId}/{year}/{month}/{timestamp}-{filename}
+    // This provides better organization and prevents directory listing attacks
+    return `users/${userId}/${year}/${month}/${timestamp}-${sanitizedFileName}`
   }
 
   /**

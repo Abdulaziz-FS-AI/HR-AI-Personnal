@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { getRolesByUserId, createRole } from "@/lib/db"
+import { requireUserContext, logDataAccess } from "@/lib/security/user-context"
+import { getUserRoles, createUserRole } from "@/lib/db-secure"
 import { createRoleSchema as validationSchema } from "@/lib/validations/role"
 
 // Use the shared validation schema
@@ -9,16 +9,20 @@ const createRoleSchema = validationSchema
 // GET /api/roles - List all roles for authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
-
-    const roles = await getRolesByUserId(session.user.id)
+    // Get roles with built-in user isolation
+    const roles = await getUserRoles(userContext.userId)
+    
+    // Log data access for audit
+    await logDataAccess(
+      userContext.userId,
+      'LIST_ROLES',
+      'roles',
+      'multiple',
+      { count: roles.length }
+    )
     
     return NextResponse.json({
       success: true,
@@ -41,15 +45,9 @@ export async function GET(request: NextRequest) {
 // POST /api/roles - Create new role
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     
     // Validate input data
@@ -65,10 +63,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const roleData = {
-      ...validationResult.data,
-      userId: session.user.id
-    }
+    const roleData = validationResult.data
 
     // Validate experience years relationship
     if (roleData.minExperienceYears && roleData.maxExperienceYears) {
@@ -83,7 +78,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const newRole = await createRole({
+    // Create role with secure user-scoped function
+    const newRole = await createUserRole(userContext.userId, {
       ...roleData,
       description: roleData.description || null,
       responsibilities: roleData.responsibilities || null,
@@ -102,6 +98,15 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+    
+    // Log role creation
+    await logDataAccess(
+      userContext.userId,
+      'CREATE_ROLE',
+      'role',
+      newRole.id,
+      { title: newRole.title }
+    )
 
     return NextResponse.json({
       success: true,

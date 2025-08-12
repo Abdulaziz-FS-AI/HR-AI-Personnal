@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { getRoleById, updateRole, deleteRole } from "@/lib/db"
+import { requireUserContext, validateResourceOwnership, logDataAccess } from "@/lib/security/user-context"
+import { getUserRole, updateUserRole, deleteUserRole } from "@/lib/db-secure"
+import { withRateLimit } from "@/lib/security/rate-limit"
 import { z } from "zod"
 
 const updateRoleSchema = z.object({
@@ -25,15 +26,9 @@ interface RouteParams {
 // GET /api/roles/[id] - Get specific role
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
-
     const { id: roleId } = await params
     
     // Validate UUID format
@@ -45,7 +40,35 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const role = await getRoleById(roleId, session.user.id)
+    // Apply rate limiting
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
+
+    // Validate ownership
+    const hasAccess = await validateResourceOwnership(roleId, userContext.userId, 'role')
+    if (!hasAccess) {
+      // Log unauthorized access attempt
+      await logDataAccess(
+        userContext.userId,
+        'UNAUTHORIZED_ACCESS_ATTEMPT',
+        'role',
+        roleId,
+        { action: 'GET' }
+      )
+      
+      return NextResponse.json(
+        { success: false, message: "Role not found or access denied" },
+        { status: 404 }
+      )
+    }
+
+    // Get role with secure function
+    const role = await getUserRole(userContext.userId, roleId)
     
     if (!role) {
       return NextResponse.json(
@@ -53,6 +76,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       )
     }
+
+    // Log successful access
+    await logDataAccess(
+      userContext.userId,
+      'VIEW_ROLE',
+      'role',
+      roleId
+    )
 
     return NextResponse.json({
       success: true,
@@ -75,15 +106,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PUT /api/roles/[id] - Update specific role
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
-
     const { id: roleId } = await params
     
     // Validate UUID format
@@ -94,6 +119,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 400 }
       )
     }
+
+    // Apply rate limiting
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
 
     const body = await request.json()
     
@@ -125,8 +159,26 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Check if role exists and belongs to user
-    const existingRole = await getRoleById(roleId, session.user.id)
+    // Validate ownership
+    const hasAccess = await validateResourceOwnership(roleId, userContext.userId, 'role')
+    if (!hasAccess) {
+      // Log unauthorized access attempt
+      await logDataAccess(
+        userContext.userId,
+        'UNAUTHORIZED_ACCESS_ATTEMPT',
+        'role',
+        roleId,
+        { action: 'UPDATE' }
+      )
+      
+      return NextResponse.json(
+        { success: false, message: "Role not found or access denied" },
+        { status: 404 }
+      )
+    }
+
+    // Check existing role for experience validation
+    const existingRole = await getUserRole(userContext.userId, roleId)
     if (!existingRole) {
       return NextResponse.json(
         { success: false, message: "Role not found" },
@@ -148,7 +200,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const updatedRole = await updateRole(roleId, session.user.id, updates)
+    // Update with secure function
+    const updatedRole = await updateUserRole(userContext.userId, roleId, updates)
     
     if (!updatedRole) {
       return NextResponse.json(
@@ -156,6 +209,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { status: 500 }
       )
     }
+
+    // Log successful update
+    await logDataAccess(
+      userContext.userId,
+      'UPDATE_ROLE',
+      'role',
+      roleId,
+      { changes: Object.keys(updates) }
+    )
 
     return NextResponse.json({
       success: true,
@@ -179,15 +241,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 // DELETE /api/roles/[id] - Delete specific role (soft delete)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth()
+    // Secure user context validation
+    const userContext = await requireUserContext(request)
     
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Authentication required" },
-        { status: 401 }
-      )
-    }
-
     const { id: roleId } = await params
     
     // Validate UUID format
@@ -199,16 +255,35 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Check if role exists and belongs to user
-    const existingRole = await getRoleById(roleId, session.user.id)
-    if (!existingRole) {
+    // Apply rate limiting
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'default'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
+
+    // Validate ownership
+    const hasAccess = await validateResourceOwnership(roleId, userContext.userId, 'role')
+    if (!hasAccess) {
+      // Log unauthorized access attempt
+      await logDataAccess(
+        userContext.userId,
+        'UNAUTHORIZED_ACCESS_ATTEMPT',
+        'role',
+        roleId,
+        { action: 'DELETE' }
+      )
+      
       return NextResponse.json(
-        { success: false, message: "Role not found" },
+        { success: false, message: "Role not found or access denied" },
         { status: 404 }
       )
     }
 
-    const deleted = await deleteRole(roleId, session.user.id)
+    // Delete with secure function
+    const deleted = await deleteUserRole(userContext.userId, roleId)
     
     if (!deleted) {
       return NextResponse.json(
@@ -216,6 +291,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 500 }
       )
     }
+
+    // Log successful deletion
+    await logDataAccess(
+      userContext.userId,
+      'DELETE_ROLE',
+      'role',
+      roleId
+    )
 
     return NextResponse.json({
       success: true,
