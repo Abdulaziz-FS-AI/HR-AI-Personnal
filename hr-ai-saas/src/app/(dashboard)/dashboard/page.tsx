@@ -7,6 +7,9 @@ import { getUserByEmail, getRolesByUserId } from "@/lib/db"
 import { getDbConnection } from "@/lib/db"
 import sql from 'mssql'
 
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const session = await auth()
 

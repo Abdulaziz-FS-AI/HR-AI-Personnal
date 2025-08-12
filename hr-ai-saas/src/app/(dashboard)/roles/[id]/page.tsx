@@ -3,6 +3,9 @@ import { auth } from "@/lib/auth"
 import { getRoleById, getRoleSkills, getRoleQuestions } from "@/lib/db-roles"
 import { RoleDetail } from "@/components/role/role-detail"
 
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
+
 interface RoleDetailPageProps {
   params: Promise<{
     id: string
