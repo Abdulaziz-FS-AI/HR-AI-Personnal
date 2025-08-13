@@ -1030,6 +1030,201 @@ export async function updateEvaluationStatus(userId: string, evaluationId: strin
   })
 }
 
+// EVALUATION SESSIONS - User-scoped operations
+export interface EvaluationSession {
+  id: string
+  userId: string
+  roleId: string
+  name: string
+  status: 'created' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  totalFiles: number
+  processedFiles: number
+  createdAt: Date
+  updatedAt: Date
+  roleTitle?: string
+  completedAt?: Date | null
+}
+
+export async function getUserEvaluations(
+  userId: string, 
+  options?: { 
+    roleId?: string
+    status?: 'created' | 'processing' | 'completed' | 'failed' | 'cancelled'
+    limit?: number
+    offset?: number 
+  }
+) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const request = pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('limit', sql.Int, options?.limit || 50)
+      .input('offset', sql.Int, options?.offset || 0)
+    
+    let whereConditions = ['es.user_id = @userId']
+    
+    if (options?.roleId) {
+      request.input('roleId', sql.UniqueIdentifier, options.roleId)
+      whereConditions.push('es.role_id = @roleId')
+    }
+    
+    if (options?.status) {
+      request.input('status', sql.NVarChar, options.status)
+      whereConditions.push('es.status = @status')
+    }
+    
+    const result = await request.query(`
+      SELECT 
+        es.id,
+        es.user_id as userId,
+        es.role_id as roleId,
+        es.name,
+        es.status,
+        es.total_files as totalFiles,
+        es.processed_files as processedFiles,
+        es.created_at as createdAt,
+        es.updated_at as updatedAt,
+        es.completed_at as completedAt,
+        r.title as roleTitle
+      FROM evaluation_sessions es
+      LEFT JOIN roles r ON es.role_id = r.id
+      WHERE ${whereConditions.join(' AND ')}
+      ORDER BY es.created_at DESC
+      OFFSET @offset ROWS
+      FETCH NEXT @limit ROWS ONLY
+    `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserEvaluation(
+  userId: string,
+  evaluationData: {
+    name: string
+    roleId: string
+    roleTitle: string
+    files: Array<{ id: string; name: string; size: number }>
+    status?: 'created' | 'processing' | 'completed' | 'failed' | 'cancelled'
+  }
+) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const transaction = new sql.Transaction(pool)
+    await transaction.begin()
+    
+    try {
+      // Create evaluation session
+      const sessionRequest = new sql.Request(transaction)
+      const sessionResult = await sessionRequest
+        .input('userId', sql.UniqueIdentifier, uid)
+        .input('roleId', sql.UniqueIdentifier, evaluationData.roleId)
+        .input('name', sql.NVarChar, evaluationData.name)
+        .input('status', sql.NVarChar, evaluationData.status || 'created')
+        .input('totalFiles', sql.Int, evaluationData.files.length)
+        .input('processedFiles', sql.Int, 0)
+        .input('createdAt', sql.DateTime2, new Date())
+        .input('updatedAt', sql.DateTime2, new Date())
+        .query(`
+          INSERT INTO evaluation_sessions (
+            id, user_id, role_id, name, status, 
+            total_files, processed_files, created_at, updated_at
+          )
+          OUTPUT INSERTED.*
+          VALUES (
+            NEWID(), @userId, @roleId, @name, @status,
+            @totalFiles, @processedFiles, @createdAt, @updatedAt
+          )
+        `)
+      
+      const session = sessionResult.recordset[0]
+      
+      // Create evaluation_files entries for each uploaded file
+      for (const file of evaluationData.files) {
+        const fileRequest = new sql.Request(transaction)
+        await fileRequest
+          .input('evaluationId', sql.UniqueIdentifier, session.id)
+          .input('fileId', sql.UniqueIdentifier, file.id)
+          .input('userId', sql.UniqueIdentifier, uid)
+          .input('filename', sql.NVarChar, file.name)
+          .input('fileSize', sql.BigInt, file.size)
+          .input('status', sql.NVarChar, 'created')
+          .input('createdAt', sql.DateTime2, new Date())
+          .input('updatedAt', sql.DateTime2, new Date())
+          .query(`
+            INSERT INTO evaluation_files (
+              id, evaluation_id, file_id, user_id, filename, 
+              file_size, status, created_at, updated_at
+            )
+            VALUES (
+              NEWID(), @evaluationId, @fileId, @userId, @filename,
+              @fileSize, @status, @createdAt, @updatedAt
+            )
+          `)
+      }
+      
+      await transaction.commit()
+      
+      return {
+        id: session.id,
+        userId: session.user_id,
+        roleId: session.role_id,
+        name: session.name,
+        status: session.status,
+        totalFiles: session.total_files,
+        processedFiles: session.processed_files,
+        createdAt: session.created_at,
+        updatedAt: session.updated_at,
+        roleTitle: evaluationData.roleTitle
+      }
+    } catch (error) {
+      await transaction.rollback()
+      throw error
+    }
+  })
+}
+
+export async function updateUserEvaluation(
+  userId: string,
+  evaluationId: string,
+  updates: {
+    status?: 'created' | 'processing' | 'completed' | 'failed' | 'cancelled'
+    processedFiles?: number
+    completedAt?: Date
+  }
+) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const updateFields = []
+    const request = pool.request()
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('updatedAt', sql.DateTime2, new Date())
+    
+    if (updates.status) {
+      updateFields.push('status = @status')
+      request.input('status', sql.NVarChar, updates.status)
+    }
+    
+    if (updates.processedFiles !== undefined) {
+      updateFields.push('processed_files = @processedFiles')
+      request.input('processedFiles', sql.Int, updates.processedFiles)
+    }
+    
+    if (updates.completedAt) {
+      updateFields.push('completed_at = @completedAt')
+      request.input('completedAt', sql.DateTime2, updates.completedAt)
+    }
+    
+    updateFields.push('updated_at = @updatedAt')
+    
+    const result = await request.query(`
+      UPDATE evaluation_sessions
+      SET ${updateFields.join(', ')}
+      WHERE id = @evaluationId AND user_id = @userId
+    `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
+
 export async function createEvaluationResult(userId: string, resultData: {
   evaluationId: string
   fileId: string
