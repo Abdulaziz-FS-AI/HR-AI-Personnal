@@ -85,9 +85,9 @@ function validateSetup() {
   console.log('')
   console.log('⚙️ API CONFIGURATION:')
   console.log('━'.repeat(50))
-  console.log('Model: meta-llama/Llama-3.3-70B-Instruct')
-  console.log('Temperature: 0.1 (consistent scoring)')
-  console.log('Max Tokens: 1500')
+  console.log('Model: openai/gpt-oss-120b')
+  console.log('Temperature: 0.15 (consistent scoring)')
+  console.log('Max Tokens: 2000')
   console.log('Stream: false')
   
   return true
@@ -110,7 +110,7 @@ async function testApiStructure() {
       'Authorization': 'Bearer [HIDDEN_API_KEY]'
     },
     body: {
-      model: 'meta-llama/Llama-3.3-70B-Instruct',
+      model: 'openai/gpt-oss-120b',
       messages: [
         {
           role: 'system',
@@ -121,9 +121,9 @@ async function testApiStructure() {
           content: '[USER_PROMPT_PREVIEW]'
         }
       ],
-      max_tokens: 1500,
-      temperature: 0.1,
-      top_p: 0.9,
+      max_tokens: 2000,
+      temperature: 0.15,
+      top_p: 0.85,
       stream: false
     }
   }

@@ -53,37 +53,53 @@ export async function GET(
 
     // Get evaluation results
     const resultsResult = await pool.request()
-      .input('sessionId', sql.UniqueIdentifier, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .query(`
         SELECT 
           er.id,
           er.file_id as fileId,
           ef.file_name as fileName,
-          COALESCE(er.candidate_name, 'Unknown') as candidateName,
-          er.overall_score as overallScore,
-          er.recommendations,
+          ef.candidate_info as candidateInfo,
+          ef.overall_score as overallScore,
+          er.recommendation,
           er.red_flags as redFlags,
-          er.ai_analysis as aiAnalysis
+          er.skills_analysis as skillsAnalysis,
+          er.questions_analysis as questionsAnalysis,
+          er.strengths,
+          er.weaknesses
         FROM evaluation_results er
         JOIN evaluation_files ef ON er.file_id = ef.id
-        WHERE er.session_id = @sessionId
-        ORDER BY er.overall_score DESC
+        WHERE er.evaluation_id = @evaluationId
+        ORDER BY ef.overall_score DESC
       `)
     
-    // Parse JSON fields
+    // Parse JSON fields with error handling
     const results = resultsResult.recordset.map(row => {
-      const aiAnalysis = row.aiAnalysis ? JSON.parse(row.aiAnalysis) : {}
+      // Safe JSON parsing helper
+      const safeJsonParse = (jsonStr: string, defaultValue: any = []) => {
+        if (!jsonStr) return defaultValue
+        try {
+          return JSON.parse(jsonStr)
+        } catch (e) {
+          console.error('JSON parse error:', e)
+          return defaultValue
+        }
+      }
+      
+      const candidateInfo = safeJsonParse(row.candidateInfo, null)
+      
       return {
         id: row.id,
         fileId: row.fileId,
         fileName: row.fileName,
-        candidateName: row.candidateName,
-        overallScore: row.overallScore,
-        skillMatches: aiAnalysis.skillMatches || [],
-        questionAnswers: aiAnalysis.questionAnswers || [],
-        recommendations: row.recommendations || '',
-        redFlags: JSON.parse(row.redFlags || '[]'),
-        strengths: aiAnalysis.strengths || []
+        candidateName: candidateInfo?.name || 'Unknown Candidate',
+        overallScore: row.overallScore || 0,
+        skillMatches: safeJsonParse(row.skillsAnalysis, []),
+        questionAnswers: safeJsonParse(row.questionsAnalysis, []),
+        recommendations: row.recommendation || '',
+        redFlags: safeJsonParse(row.redFlags, []),
+        strengths: safeJsonParse(row.strengths, []),
+        weaknesses: safeJsonParse(row.weaknesses, [])
       }
     })
 

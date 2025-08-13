@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Verify evaluation belongs to user and get details
     const evalCheck = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
-      .input('userId', sql.NVarChar, session.user.id)
+      .input('userId', sql.UniqueIdentifier, session.user.id)
       .query(`
         SELECT 
           es.*, 
@@ -151,13 +151,13 @@ export async function POST(request: NextRequest) {
       `)
 
     const skills = skillsResult.recordset.map(s => ({
-      name: s.skill_name,
+      skillName: s.skill_name,
       weight: s.weight,
-      required: s.is_required
+      isRequired: s.is_required
     }))
 
     const questions = questionsResult.recordset.map(q => ({
-      text: q.question_text,
+      questionText: q.question_text,
       weight: q.weight
     }))
 
@@ -172,8 +172,19 @@ export async function POST(request: NextRequest) {
       
       const batchPromises = batch.map(async (file: any) => {
         try {
-          // Upload file
-          const fileBuffer = Buffer.from(file.content.split(',')[1] || file.content, 'base64')
+          // Upload file - handle both base64 and buffer formats
+          let fileBuffer: Buffer
+          if (typeof file.content === 'string') {
+            // Handle base64 string (may have data:...;base64, prefix)
+            const base64Data = file.content.includes(',') 
+              ? file.content.split(',')[1] 
+              : file.content
+            fileBuffer = Buffer.from(base64Data, 'base64')
+          } else if (Buffer.isBuffer(file.content)) {
+            fileBuffer = file.content
+          } else {
+            throw new Error('Invalid file content format')
+          }
           const uploadResult = await uploader.uploadFile(
             fileBuffer,
             file.filename,
@@ -199,15 +210,8 @@ export async function POST(request: NextRequest) {
             textResult.fullText,
             {
               title: evaluation.roleTitle,
-              skills: skills.map(s => ({
-                skillName: s.name,
-                weight: s.weight,
-                isRequired: s.required
-              })),
-              questions: questions.map(q => ({
-                questionText: q.text,
-                weight: q.weight
-              }))
+              skills: skills,
+              questions: questions
             }
           )
 
@@ -215,41 +219,38 @@ export async function POST(request: NextRequest) {
           const fileId = sql.UniqueIdentifier.NEWID()
           await pool!.request()
             .input('fileId', sql.UniqueIdentifier, fileId)
-            .input('sessionId', sql.UniqueIdentifier, evaluationId)
+            .input('evaluationId', sql.UniqueIdentifier, evaluationId)
             .input('fileName', sql.NVarChar, file.filename)
-            .input('fileSize', sql.Int, file.size || 0)
-            .input('fileUrl', sql.NVarChar, uploadResult.blobUrl)
+            .input('fileSize', sql.BigInt, file.size || 0)
+            .input('blobName', sql.NVarChar, uploadResult.blobUrl)
             .input('extractedText', sql.NText, textResult.fullText)
+            .input('overallScore', sql.Float, analysisResult.overallScore)
             .query(`
               INSERT INTO evaluation_files (
-                id, session_id, file_name, file_size, file_url, 
-                status, extracted_text, uploaded_at, processed_at
+                id, evaluation_id, file_name, file_size, blob_name, 
+                status, extracted_text, overall_score, created_at, processed_at
               ) VALUES (
-                @fileId, @sessionId, @fileName, @fileSize, @fileUrl,
-                'completed', @extractedText, GETDATE(), GETDATE()
+                @fileId, @evaluationId, @fileName, @fileSize, @blobName,
+                'completed', @extractedText, @overallScore, GETDATE(), GETDATE()
               )
             `)
 
           // Then save evaluation result
           await pool!.request()
-            .input('sessionId', sql.UniqueIdentifier, evaluationId)
+            .input('evaluationId', sql.UniqueIdentifier, evaluationId)
             .input('fileId', sql.UniqueIdentifier, fileId)
-            .input('roleId', sql.UniqueIdentifier, evaluation.roleId)
-            .input('overallScore', sql.Decimal(5,2), analysisResult.overallScore)
-            .input('recommendations', sql.NVarChar, analysisResult.recommendations)
-            .input('redFlags', sql.NVarChar, JSON.stringify(analysisResult.redFlags))
-            .input('aiAnalysis', sql.NVarChar, JSON.stringify({
-              skillMatches: analysisResult.skillMatches,
-              questionAnswers: analysisResult.questionAnswers,
-              strengths: analysisResult.strengths
-            }))
+            .input('skillsAnalysis', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.skillMatches))
+            .input('questionsAnalysis', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.questionAnswers))
+            .input('strengths', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.strengths))
+            .input('redFlags', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.redFlags))
+            .input('recommendation', sql.NText, analysisResult.recommendations)
             .query(`
               INSERT INTO evaluation_results (
-                id, session_id, file_id, role_id, overall_score,
-                recommendations, red_flags, ai_analysis, created_at
+                id, evaluation_id, file_id, skills_analysis, questions_analysis,
+                strengths, red_flags, recommendation, created_at
               ) VALUES (
-                NEWID(), @sessionId, @fileId, @roleId, @overallScore,
-                @recommendations, @redFlags, @aiAnalysis, GETDATE()
+                NEWID(), @evaluationId, @fileId, @skillsAnalysis, @questionsAnalysis,
+                @strengths, @redFlags, @recommendation, GETDATE()
               )
             `)
 
@@ -302,10 +303,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error processing evaluation:', error)
     
-    // Try to update evaluation status to failed
-    if (pool) {
+    // Try to update evaluation status to failed (evaluationId is already available in scope)
+    if (pool && evaluationId) {
       try {
-        const { evaluationId } = await request.json()
         await pool.request()
           .input('evaluationId', sql.UniqueIdentifier, evaluationId)
           .input('status', sql.NVarChar, 'failed')
