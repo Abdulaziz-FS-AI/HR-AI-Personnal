@@ -7,8 +7,8 @@ import { EvaluationAnalyzer } from '@/lib/ai/evaluation-analyzer'
 import sql from 'mssql'
 import { getDbConnection } from '@/lib/db'
 
-// Increased timeout for fallback processing
-export const maxDuration = 600 // 10 minutes
+// Increased timeout for fallback processing (Vercel Hobby limit: 300s)
+export const maxDuration = 300 // 5 minutes
 
 export async function POST(request: NextRequest) {
   let pool: sql.ConnectionPool | null = null

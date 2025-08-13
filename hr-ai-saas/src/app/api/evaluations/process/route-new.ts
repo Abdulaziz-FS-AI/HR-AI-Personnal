@@ -5,7 +5,7 @@ import sql from 'mssql'
 import { getDbConnection } from '@/lib/db'
 
 // Dynamic timeout based on processing mode
-export const maxDuration = 600 // 10 minutes max
+export const maxDuration = 300 // 5 minutes max (Vercel Hobby limit)
 
 export async function POST(request: NextRequest) {
   let pool: sql.ConnectionPool | null = null
