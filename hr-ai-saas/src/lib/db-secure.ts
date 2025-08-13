@@ -475,6 +475,7 @@ export async function getUserRoleQuestions(userId: string, roleId: string) {
     // Then get the questions
     const result = await pool.request()
       .input('roleId', sql.UniqueIdentifier, roleId)
+      .input('userId', sql.UniqueIdentifier, uid)
       .query(`
         SELECT rq.id, rq.role_id as roleId, rq.question_text as questionText,
                rq.weight, rq.category, rq.is_active as isActive, rq.created_at as createdAt

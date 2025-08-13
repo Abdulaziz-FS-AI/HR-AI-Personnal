@@ -8,6 +8,24 @@ export async function GET() {
     const fixResults = []
     
     // 1. Drop any existing constraints on evaluation_sessions.status
+    // Specifically target the problematic constraint first
+    try {
+      await pool.request().query(`
+        IF EXISTS (
+          SELECT * FROM sys.check_constraints 
+          WHERE name = 'CK__evaluatio__statu__6442E2C9'
+        )
+        BEGIN
+          ALTER TABLE evaluation_sessions 
+          DROP CONSTRAINT CK__evaluatio__statu__6442E2C9
+        END
+      `)
+      fixResults.push('Dropped specific constraint: CK__evaluatio__statu__6442E2C9')
+    } catch (e) {
+      console.log('Specific constraint may not exist:', e)
+    }
+    
+    // Drop any other constraints on the status column
     try {
       const constraintsResult = await pool.request().query(`
         SELECT cc.name as constraint_name
@@ -15,6 +33,7 @@ export async function GET() {
         INNER JOIN sys.columns c ON cc.parent_object_id = c.object_id 
         INNER JOIN sys.tables t ON cc.parent_object_id = t.object_id
         WHERE t.name = 'evaluation_sessions' AND c.name = 'status'
+          AND cc.name != 'CHK_evaluation_sessions_status'
       `)
       
       for (const row of constraintsResult.recordset) {
@@ -25,7 +44,7 @@ export async function GET() {
         fixResults.push(`Dropped constraint: ${row.constraint_name}`)
       }
     } catch (e) {
-      console.log('No existing constraints to drop or error dropping:', e)
+      console.log('No other constraints to drop or error dropping:', e)
     }
 
     // 2. Add proper constraint for evaluation_sessions
