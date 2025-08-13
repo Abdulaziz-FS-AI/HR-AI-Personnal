@@ -106,6 +106,12 @@ export function QuestionsBuilder({
   }
 
   const handleFormSubmit = async (data: QuestionFormData) => {
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('Already submitting, ignoring duplicate request')
+      return
+    }
+    
     setIsSubmitting(true)
     try {
       // Filter out incomplete questions before submitting
@@ -114,19 +120,20 @@ export function QuestionsBuilder({
       )
       
       const questions = validQuestions.map(q => ({
-        questionText: q.questionText,
-        weight: q.weight,
+        questionText: q.questionText.trim(),
+        weight: q.weight || 5,
         category: q.category || "",
         roleId: "" // Will be set by parent component
       })) as Question[]
       
-      await onSubmit(questions)
+      console.log('Submitting questions:', questions.length)
+      onSubmit(questions)
       onNext()
     } catch (error) {
       console.error('Questions submission error:', error)
-    } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false) // Reset on error
     }
+    // Note: Don't reset isSubmitting on success - let parent handle it
   }
 
   const getWeightColor = (weight: number) => {
@@ -436,7 +443,7 @@ export function QuestionsBuilder({
               
               <Button
                 type="submit"
-                disabled={isSubmitting || isLoading}
+                disabled={isSubmitting || isLoading || watchedQuestions.filter(q => validateQuestion(q.questionText).isValid).length === 0 && fields.length > 0}
                 className="min-w-[120px]"
               >
                 {isSubmitting ? "Saving..." : "Review & Create Role"}

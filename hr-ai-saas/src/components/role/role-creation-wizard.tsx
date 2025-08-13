@@ -43,6 +43,7 @@ export function RoleCreationWizard({
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isCreatingRole, setIsCreatingRole] = useState(false)
   
   const [roleData, setRoleData] = useState<RoleData>({
     job: initialData?.job || null,
@@ -107,6 +108,12 @@ export function RoleCreationWizard({
   }
 
   const createRole = async () => {
+    // Prevent duplicate submissions
+    if (isCreatingRole) {
+      console.log('Already creating role, ignoring duplicate request')
+      return
+    }
+    
     if (!roleData.job) {
       toast.error("Please complete job details to create the role")
       return
@@ -121,6 +128,10 @@ export function RoleCreationWizard({
     }
 
     setIsLoading(true)
+    setIsCreatingRole(true)
+    
+    let createdRoleId: string | null = null
+    
     try {
       // 1. Create the role - send only the job details we have
       const fullRoleData = roleData.job
@@ -144,72 +155,98 @@ export function RoleCreationWizard({
       }
 
       const { data: createdRole } = await roleResponse.json()
+      createdRoleId = createdRole.id
+      
+      console.log('Role created successfully with ID:', createdRoleId)
 
-      // 2. Add requirements
+      // 2. Add requirements (with error handling)
       if (roleData.requirements.length > 0) {
-        const requirementPromises = roleData.requirements.map(requirement =>
-          fetch('/api/role-requirements', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ...requirement,
-              roleId: createdRole.id
-            }),
-          })
-        )
+        console.log('Adding requirements:', roleData.requirements.length)
+        const requirementPromises = roleData.requirements.map(async (requirement) => {
+          try {
+            const response = await fetch('/api/role-requirements', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ...requirement,
+                roleId: createdRole.id
+              }),
+            })
+            
+            if (!response.ok) {
+              const errorData = await response.json()
+              console.error('Requirement creation error:', errorData)
+              // Don't throw - continue with other requirements
+            }
+            return response
+          } catch (error) {
+            console.error('Failed to create requirement:', error)
+            // Don't throw - continue with other requirements
+          }
+        })
 
         await Promise.all(requirementPromises)
       }
 
-      // 3. Add skills
+      // 3. Add skills (with error handling)
       if (roleData.skills.length > 0) {
+        console.log('Adding skills:', roleData.skills.length)
         const skillPromises = roleData.skills.map(async (skill) => {
-          const response = await fetch('/api/role-skills', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ...skill,
-              roleId: createdRole.id
-            }),
-          })
-          
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error('Skill creation error:', errorData)
-            throw new Error(`Failed to create skill: ${errorData.message}`)
+          try {
+            const response = await fetch('/api/role-skills', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ...skill,
+                roleId: createdRole.id
+              }),
+            })
+            
+            if (!response.ok) {
+              const errorData = await response.json()
+              console.error('Skill creation error:', errorData)
+              // Don't throw - continue with other skills
+            }
+            return response
+          } catch (error) {
+            console.error('Failed to create skill:', error)
+            // Don't throw - continue with other skills
           }
-          
-          return response
         })
 
         await Promise.all(skillPromises)
       }
 
-      // 4. Add questions (if any)
+      // 4. Add questions (with error handling)
       if (roleData.questions.length > 0) {
-        const questionPromises = roleData.questions.map(async question => {
-          const response = await fetch('/api/role-questions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ...question,
-              roleId: createdRole.id
-            }),
-          })
-          
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error('Question creation error:', errorData)
-            throw new Error(`Failed to create question: ${errorData.message}`)
+        console.log('Adding questions:', roleData.questions.length)
+        const questionPromises = roleData.questions.map(async (question) => {
+          try {
+            const response = await fetch('/api/role-questions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ...question,
+                roleId: createdRole.id
+              }),
+            })
+            
+            if (!response.ok) {
+              const errorData = await response.json()
+              console.error('Question creation error:', errorData)
+              // Don't throw - continue with other questions
+            }
+            return response
+          } catch (error) {
+            console.error('Failed to create question:', error)
+            // Don't throw - continue with other questions
           }
-          
-          return response
         })
 
         await Promise.all(questionPromises)
@@ -223,9 +260,17 @@ export function RoleCreationWizard({
 
     } catch (error) {
       console.error('Error creating role:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to create role')
+      
+      // If role was created but sub-items failed, still navigate
+      if (createdRoleId) {
+        toast.warning('Role created but some details may be missing. You can edit them later.')
+        router.push('/roles')
+      } else {
+        toast.error(error instanceof Error ? error.message : 'Failed to create role')
+      }
     } finally {
       setIsLoading(false)
+      setIsCreatingRole(false)
     }
   }
 
@@ -262,6 +307,12 @@ export function RoleCreationWizard({
   }
 
   const handleFinalSubmit = () => {
+    // Prevent duplicate submissions
+    if (isLoading || isCreatingRole) {
+      console.log('Already processing, ignoring duplicate submission')
+      return
+    }
+    
     if (isEditing && roleId) {
       updateRole()
     } else {
