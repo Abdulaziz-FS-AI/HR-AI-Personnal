@@ -88,10 +88,10 @@ export default function ProcessingStatusPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle className=\"w-4 h-4\" />
-      case 'failed': return <AlertCircle className=\"w-4 h-4\" />
-      case 'processing': return <Clock className=\"w-4 h-4\" />
-      default: return <FileText className=\"w-4 h-4\" />
+      case 'completed': return <CheckCircle className="w-4 h-4" />
+      case 'failed': return <AlertCircle className="w-4 h-4" />
+      case 'processing': return <Clock className="w-4 h-4" />
+      default: return <FileText className="w-4 h-4" />
     }
   }
 
@@ -105,20 +105,20 @@ export default function ProcessingStatusPage() {
 
   if (loading) {
     return (
-      <div className=\"flex items-center justify-center min-h-96\">
-        <div className=\"animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600\"></div>
+      <div className="flex items-center justify-center min-h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   if (error || !session) {
     return (
-      <div className=\"flex items-center justify-center min-h-96\">
-        <Card className=\"w-full max-w-md\">
-          <CardContent className=\"p-6 text-center\">
-            <AlertCircle className=\"w-12 h-12 text-red-500 mx-auto mb-4\" />
-            <h3 className=\"text-lg font-semibold mb-2\">Error Loading Session</h3>
-            <p className=\"text-gray-600 mb-4\">{error || 'Session not found'}</p>
+      <div className="flex items-center justify-center min-h-96">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Error Loading Session</h3>
+            <p className="text-gray-600 mb-4">{error || 'Session not found'}</p>
             <Button onClick={() => window.location.reload()}>
               Try Again
             </Button>
@@ -129,21 +129,21 @@ export default function ProcessingStatusPage() {
   }
 
   return (
-    <div className=\"space-y-6\">
+    <div className="space-y-6">
       {/* Header */}
-      <div className=\"flex items-center justify-between\">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className=\"text-2xl font-bold\">Bulk Processing Status</h1>
-          <p className=\"text-gray-600\">Session ID: {sessionId}</p>
+          <h1 className="text-2xl font-bold">Bulk Processing Status</h1>
+          <p className="text-gray-600">Session ID: {sessionId}</p>
         </div>
-        <div className=\"flex gap-2\">
-          <Button variant=\"outline\" onClick={fetchData}>
-            <RefreshCw className=\"w-4 h-4 mr-2\" />
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchData}>
+            <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
           {session.status === 'completed' && (
             <Button>
-              <Download className=\"w-4 h-4 mr-2\" />
+              <Download className="w-4 h-4 mr-2" />
               Export Results
             </Button>
           )}
@@ -151,15 +151,15 @@ export default function ProcessingStatusPage() {
       </div>
 
       {/* Status Overview */}
-      <div className=\"grid grid-cols-1 md:grid-cols-4 gap-4\">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className=\"p-6\">
-            <div className=\"flex items-center gap-2\">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2">
               <div className={`p-2 rounded-lg ${getStatusColor(session.status)} bg-opacity-10`}>
                 {getStatusIcon(session.status)}
               </div>
               <div>
-                <p className=\"text-sm text-gray-600\">Status</p>
+                <p className="text-sm text-gray-600">Status</p>
                 <p className={`font-semibold ${getStatusColor(session.status)}`}>
                   {session.status.replace('_', ' ').toUpperCase()}
                 </p>
@@ -169,42 +169,42 @@ export default function ProcessingStatusPage() {
         </Card>
 
         <Card>
-          <CardContent className=\"p-6\">
-            <div className=\"flex items-center gap-2\">
-              <div className=\"p-2 rounded-lg bg-blue-100\">
-                <FileText className=\"w-4 h-4 text-blue-600\" />
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-blue-100">
+                <FileText className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <p className=\"text-sm text-gray-600\">Total Files</p>
-                <p className=\"font-semibold\">{session.totalFiles}</p>
+                <p className="text-sm text-gray-600">Total Files</p>
+                <p className="font-semibold">{session.totalFiles}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className=\"p-6\">
-            <div className=\"flex items-center gap-2\">
-              <div className=\"p-2 rounded-lg bg-green-100\">
-                <CheckCircle className=\"w-4 h-4 text-green-600\" />
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-green-100">
+                <CheckCircle className="w-4 h-4 text-green-600" />
               </div>
               <div>
-                <p className=\"text-sm text-gray-600\">Processed</p>
-                <p className=\"font-semibold\">{session.totalProcessed}</p>
+                <p className="text-sm text-gray-600">Processed</p>
+                <p className="font-semibold">{session.totalProcessed}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className=\"p-6\">
-            <div className=\"flex items-center gap-2\">
-              <div className=\"p-2 rounded-lg bg-purple-100\">
-                <BarChart3 className=\"w-4 h-4 text-purple-600\" />
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-purple-100">
+                <BarChart3 className="w-4 h-4 text-purple-600" />
               </div>
               <div>
-                <p className=\"text-sm text-gray-600\">Avg Score</p>
-                <p className=\"font-semibold\">{avgScore ? `${Math.round(avgScore)}%` : 'N/A'}</p>
+                <p className="text-sm text-gray-600">Avg Score</p>
+                <p className="font-semibold">{avgScore ? `${Math.round(avgScore)}%` : 'N/A'}</p>
               </div>
             </div>
           </CardContent>
@@ -213,14 +213,14 @@ export default function ProcessingStatusPage() {
 
       {/* Progress Bar */}
       <Card>
-        <CardContent className=\"p-6\">
-          <div className=\"space-y-4\">
-            <div className=\"flex justify-between items-center\">
-              <h3 className=\"font-semibold\">Processing Progress</h3>
-              <span className=\"text-sm text-gray-600\">{progressPercentage}% complete</span>
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold">Processing Progress</h3>
+              <span className="text-sm text-gray-600">{progressPercentage}% complete</span>
             </div>
-            <Progress value={progressPercentage} className=\"h-3\" />
-            <div className=\"flex justify-between text-sm text-gray-600\">
+            <Progress value={progressPercentage} className="h-3" />
+            <div className="flex justify-between text-sm text-gray-600">
               <span>Processed: {session.totalProcessed}</span>
               <span>Failed: {session.totalFailed}</span>
               <span>Remaining: {session.totalFiles - session.totalProcessed - session.totalFailed}</span>
@@ -235,32 +235,32 @@ export default function ProcessingStatusPage() {
           <CardTitle>Session Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4 text-sm\">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <p className=\"font-medium text-gray-600\">Created At</p>
+              <p className="font-medium text-gray-600">Created At</p>
               <p>{new Date(session.createdAt).toLocaleString()}</p>
             </div>
             <div>
-              <p className=\"font-medium text-gray-600\">Estimated Completion</p>
+              <p className="font-medium text-gray-600">Estimated Completion</p>
               <p>{new Date(session.estimatedCompletionTime).toLocaleString()}</p>
             </div>
             <div>
-              <p className=\"font-medium text-gray-600\">Priority</p>
-              <Badge variant=\"outline\">{session.priority.toUpperCase()}</Badge>
+              <p className="font-medium text-gray-600">Priority</p>
+              <Badge variant="outline">{session.priority.toUpperCase()}</Badge>
             </div>
             <div>
-              <p className=\"font-medium text-gray-600\">Notification Email</p>
+              <p className="font-medium text-gray-600">Notification Email</p>
               <p>{session.notificationEmail}</p>
             </div>
             {session.roleTitle && (
               <div>
-                <p className=\"font-medium text-gray-600\">Role</p>
+                <p className="font-medium text-gray-600">Role</p>
                 <p>{session.roleTitle}</p>
               </div>
             )}
             {session.completedAt && (
               <div>
-                <p className=\"font-medium text-gray-600\">Completed At</p>
+                <p className="font-medium text-gray-600">Completed At</p>
                 <p>{new Date(session.completedAt).toLocaleString()}</p>
               </div>
             )}
@@ -277,26 +277,73 @@ export default function ProcessingStatusPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className=\"space-y-2 max-h-96 overflow-y-auto\">
+          <div className="space-y-2 max-h-96 overflow-y-auto">
             {files.map((file) => (
-              <div key={file.id} className=\"flex items-center justify-between p-3 border rounded-lg\">
-                <div className=\"flex items-center gap-3\">
+              <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-3">
                   <div className={getStatusColor(file.status)}>
                     {getStatusIcon(file.status)}
                   </div>
                   <div>
-                    <p className=\"font-medium truncate max-w-xs\">{file.filename}</p>
+                    <p className="font-medium truncate max-w-xs">{file.filename}</p>
                     {file.error && (
-                      <p className=\"text-xs text-red-600\">{file.error}</p>
+                      <p className="text-xs text-red-600">{file.error}</p>
                     )}
                   </div>
                 </div>
                 
-                <div className=\"flex items-center gap-2\">
+                <div className="flex items-center gap-2">
                   {file.score !== undefined && (
-                    <Badge variant=\"outline\">{file.score}%</Badge>
+                    <Badge variant="outline">{file.score}%</Badge>
                   )}
                   <Badge variant={
                     file.status === 'completed' ? 'default' :
                     file.status === 'failed' ? 'destructive' :
-                    file.status === 'processing' ? 'secondary' : 'outline'\n                  }>\n                    {file.status}\n                  </Badge>\n                </div>\n              </div>\n            ))}\n          </div>\n        </CardContent>\n      </Card>\n\n      {/* Processing Complete Message */}\n      {session.status === 'completed' && (\n        <Card className=\"border-green-200 bg-green-50\">\n          <CardContent className=\"p-6\">\n            <div className=\"flex items-center gap-3\">\n              <CheckCircle className=\"w-6 h-6 text-green-600\" />\n              <div>\n                <h3 className=\"font-semibold text-green-800\">Processing Complete!</h3>\n                <p className=\"text-green-700\">\n                  All {session.totalProcessed} files have been processed successfully.\n                  {avgScore && ` Average score: ${Math.round(avgScore)}%`}\n                </p>\n              </div>\n            </div>\n          </CardContent>\n        </Card>\n      )}\n\n      {/* Error Message */}\n      {session.status === 'failed' && (\n        <Card className=\"border-red-200 bg-red-50\">\n          <CardContent className=\"p-6\">\n            <div className=\"flex items-center gap-3\">\n              <AlertCircle className=\"w-6 h-6 text-red-600\" />\n              <div>\n                <h3 className=\"font-semibold text-red-800\">Processing Failed</h3>\n                <p className=\"text-red-700\">\n                  The bulk processing session has failed. Please check individual file errors above.\n                </p>\n              </div>\n            </div>\n          </CardContent>\n        </Card>\n      )}\n    </div>\n  )\n}"
+                    file.status === 'processing' ? 'secondary' : 'outline'
+                  }>
+                    {file.status}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Processing Complete Message */}
+      {session.status === 'completed' && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-green-800">Processing Complete!</h3>
+                <p className="text-green-700">
+                  All {session.totalProcessed} files have been processed successfully.
+                  {avgScore && ` Average score: ${Math.round(avgScore)}%`}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error Message */}
+      {session.status === 'failed' && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              <div>
+                <h3 className="font-semibold text-red-800">Processing Failed</h3>
+                <p className="text-red-700">
+                  The bulk processing session has failed. Please check individual file errors above.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}

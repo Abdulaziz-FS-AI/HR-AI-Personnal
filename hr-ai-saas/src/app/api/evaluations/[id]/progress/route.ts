@@ -6,7 +6,7 @@ import { smartRouter } from '@/lib/evaluation/smart-router'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { evaluationId: string } }
+  { params }: { params: { id: string } }
 ) {
   let pool: sql.ConnectionPool | null = null
   
@@ -19,7 +19,7 @@ export async function GET(
       )
     }
 
-    const evaluationId = params.evaluationId
+    const evaluationId = params.id
     pool = await getDbConnection()
 
     // Get evaluation session with progress details
