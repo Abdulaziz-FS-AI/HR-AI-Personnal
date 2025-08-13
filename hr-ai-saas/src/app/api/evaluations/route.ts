@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       roleId,
       roleTitle,
       files,
-      status: 'pending'
+      status: 'created'
     })
 
     // Log evaluation creation

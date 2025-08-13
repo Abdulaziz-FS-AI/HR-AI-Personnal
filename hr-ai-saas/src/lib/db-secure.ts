@@ -945,7 +945,7 @@ export async function createUserEvaluation(userId: string, data: {
       .input('roleId', sql.UniqueIdentifier, data.roleId)
       .input('name', sql.NVarChar, data.name)
       .input('totalFiles', sql.Int, data.files.length)
-      .input('status', sql.NVarChar, data.status || 'pending')
+      .input('status', sql.NVarChar, data.status || 'created')
       .query(`
         INSERT INTO evaluation_sessions (
           user_id, role_id, name, total_files, processed_files, status
@@ -966,7 +966,7 @@ export async function createUserEvaluation(userId: string, data: {
         .input('sessionId', sql.UniqueIdentifier, evaluationSession.id)
         .input('fileName', sql.NVarChar, file.name)
         .input('fileSize', sql.Int, file.size)
-        .input('status', sql.NVarChar, 'pending')
+        .input('status', sql.NVarChar, 'created')
         .query(`
           INSERT INTO evaluation_files (
             session_id, file_name, file_size, status
