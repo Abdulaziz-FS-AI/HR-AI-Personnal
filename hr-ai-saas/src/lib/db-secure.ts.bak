@@ -445,6 +445,87 @@ export interface RoleSkill {
   createdAt: Date
 }
 
+export async function getUserRoleSkills(userId: string, roleId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Then get the skills
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT rs.id, rs.role_id as roleId, rs.skill_name as skillName, 
+               rs.weight, rs.is_required as isRequired, rs.skill_category as skillCategory,
+               rs.created_at as createdAt
+        FROM role_skills rs
+        INNER JOIN roles r ON rs.role_id = r.id
+        WHERE rs.role_id = @roleId AND r.user_id = @userId AND r.is_active = 1
+        ORDER BY rs.weight DESC, rs.skill_name
+      `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserRoleSkill(userId: string, skillData: Omit<RoleSkill, 'id' | 'createdAt'>) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, skillData.roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Create the skill
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, skillData.roleId)
+      .input('skillName', sql.NVarChar, skillData.skillName)
+      .input('weight', sql.Int, skillData.weight)
+      .input('isRequired', sql.Bit, skillData.isRequired)
+      .input('skillCategory', sql.NVarChar, skillData.skillCategory)
+      .query(`
+        INSERT INTO role_skills (role_id, skill_name, weight, is_required, skill_category)
+        OUTPUT INSERTED.id, INSERTED.role_id as roleId, INSERTED.skill_name as skillName,
+               INSERTED.weight, INSERTED.is_required as isRequired,
+               INSERTED.skill_category as skillCategory, INSERTED.created_at as createdAt
+        VALUES (@roleId, @skillName, @weight, @isRequired, @skillCategory)
+      `)
+    
+    return result.recordset[0]
+  })
+}
+
+export async function deleteUserRoleSkill(userId: string, skillId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // Verify the skill belongs to a role owned by the user
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('skillId', sql.UniqueIdentifier, skillId)
+      .query(`
+        DELETE rs FROM role_skills rs
+        INNER JOIN roles r ON rs.role_id = r.id
+        WHERE rs.id = @skillId AND r.user_id = @userId AND r.is_active = 1
+      `)
+    
+    return result.rowsAffected[0] > 0
+  })
+}
 
 // ROLE QUESTIONS - User-scoped operations
 export interface RoleQuestion {
@@ -550,6 +631,69 @@ export interface RoleRequirement {
   createdAt: Date
 }
 
+export async function getUserRoleRequirements(userId: string, roleId: string) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Then get the requirements
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, roleId)
+      .query(`
+        SELECT rr.id, rr.roleId, rr.requirementText, rr.weight, 
+               rr.isRequired, rr.category, rr.createdAt
+        FROM role_requirements rr
+        INNER JOIN roles r ON rr.roleId = r.id
+        WHERE rr.roleId = @roleId AND r.user_id = @userId AND r.is_active = 1
+        ORDER BY rr.category, rr.weight DESC, rr.createdAt ASC
+      `)
+    
+    return result.recordset
+  })
+}
+
+export async function createUserRoleRequirement(userId: string, requirementData: Omit<RoleRequirement, 'id' | 'createdAt'>) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    // First verify the role belongs to the user
+    const roleCheck = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('roleId', sql.UniqueIdentifier, requirementData.roleId)
+      .query(`
+        SELECT id FROM roles 
+        WHERE id = @roleId AND user_id = @userId AND is_active = 1
+      `)
+    
+    if (roleCheck.recordset.length === 0) {
+      throw new Error('Role not found or access denied')
+    }
+    
+    // Create the requirement
+    const result = await pool.request()
+      .input('roleId', sql.UniqueIdentifier, requirementData.roleId)
+      .input('requirementText', sql.NText, requirementData.requirementText)
+      .input('weight', sql.Int, requirementData.weight)
+      .input('isRequired', sql.Bit, requirementData.isRequired)
+      .input('category', sql.NVarChar, requirementData.category)
+      .query(`
+        INSERT INTO role_requirements (roleId, requirementText, weight, isRequired, category, createdAt)
+        OUTPUT INSERTED.*
+        VALUES (@roleId, @requirementText, @weight, @isRequired, @category, GETUTCDATE())
+      `)
+    
+    return result.recordset[0]
+  })
+}
+
 export async function deleteUserRoleRequirement(userId: string, requirementId: string) {
   return executeUserScopedQuery(userId, async (pool, uid) => {
     // Verify the requirement belongs to a role owned by the user
@@ -558,7 +702,7 @@ export async function deleteUserRoleRequirement(userId: string, requirementId: s
       .input('requirementId', sql.UniqueIdentifier, requirementId)
       .query(`
         DELETE rr FROM role_requirements rr
-        INNER JOIN roles r ON rr.role_id = r.id
+        INNER JOIN roles r ON rr.roleId = r.id
         WHERE rr.id = @requirementId AND r.user_id = @userId AND r.is_active = 1
       `)
     

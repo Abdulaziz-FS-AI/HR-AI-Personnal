@@ -56,3 +56,6 @@ newest-logs/
 # Test coverage
 coverage/
 */coverage/
+
+# MCP configuration with sensitive data
+.mcp.json

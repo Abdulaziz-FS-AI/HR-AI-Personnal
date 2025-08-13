@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getDbConnection } from "@/lib/db-config"
+import { getDbConnection } from "@/lib/db"
 
 export async function POST() {
   try {
@@ -9,20 +9,30 @@ export async function POST() {
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='role_requirements' AND xtype='U')
       CREATE TABLE role_requirements (
-        id NVARCHAR(50) PRIMARY KEY DEFAULT NEWID(),
-        roleId NVARCHAR(50) NOT NULL,
-        requirementText NVARCHAR(MAX) NOT NULL,
+        id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+        role_id UNIQUEIDENTIFIER NOT NULL,
+        requirement_text NVARCHAR(MAX) NOT NULL,
         weight INT NOT NULL CHECK (weight >= 1 AND weight <= 10),
-        isRequired BIT NOT NULL DEFAULT 0,
+        is_required BIT NOT NULL DEFAULT 0,
         category NVARCHAR(50) NOT NULL CHECK (category IN ('education', 'experience', 'other')),
-        createdAt DATETIME2 NOT NULL DEFAULT GETDATE(),
-        updatedAt DATETIME2 NULL,
+        created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        updated_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
         
-        -- Indexes for performance
-        INDEX IX_role_requirements_roleId (roleId),
-        INDEX IX_role_requirements_category (category),
-        INDEX IX_role_requirements_weight (weight)
+        -- Foreign key
+        FOREIGN KEY (role_id) REFERENCES roles(id)
       )
+    `)
+    
+    // Create indexes
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = 'IX_role_requirements_role_id')
+        CREATE INDEX IX_role_requirements_role_id ON role_requirements (role_id);
+        
+      IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = 'IX_role_requirements_category')
+        CREATE INDEX IX_role_requirements_category ON role_requirements (category);
+        
+      IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = 'IX_role_requirements_weight')
+        CREATE INDEX IX_role_requirements_weight ON role_requirements (weight);
     `)
 
     // Verify table creation
