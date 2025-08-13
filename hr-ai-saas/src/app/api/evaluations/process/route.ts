@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { evaluationQueue } from '@/lib/azure/evaluation-queue'
 import { EvaluationFileUploader } from '@/lib/azure/evaluation-uploader'
 import { PDFTextExtractor } from '@/lib/services/pdf-text-extractor'
 import { EvaluationAnalyzer } from '@/lib/ai/evaluation-analyzer'
 import sql from 'mssql'
 import { getDbConnection } from '@/lib/db'
 
-export const maxDuration = 300 // 5 minutes max for processing
+// Increased timeout for fallback processing
+export const maxDuration = 600 // 10 minutes
 
 export async function POST(request: NextRequest) {
   let pool: sql.ConnectionPool | null = null
@@ -31,14 +33,19 @@ export async function POST(request: NextRequest) {
 
     pool = await getDbConnection()
     
-    // Verify evaluation belongs to user
+    // Verify evaluation belongs to user and get details
     const evalCheck = await pool.request()
       .input('evaluationId', sql.NVarChar, evaluationId)
       .input('userId', sql.NVarChar, session.user.id)
       .query(`
-        SELECT es.*, r.title as roleTitle
+        SELECT 
+          es.*, 
+          r.title as roleTitle,
+          r.id as roleId,
+          u.email as userEmail
         FROM evaluation_sessions es
         JOIN roles r ON es.role_id = r.id
+        JOIN users u ON es.user_id = u.id
         WHERE es.id = @evaluationId AND es.user_id = @userId
       `)
     
@@ -50,231 +57,238 @@ export async function POST(request: NextRequest) {
     }
 
     const evaluation = evalCheck.recordset[0]
-    
-    // Get role details with skills and questions
-    const roleData = await pool.request()
-      .input('roleId', sql.NVarChar, evaluation.role_id)
-      .query(`
-        SELECT 
-          r.title,
-          r.min_experience_years,
-          r.max_experience_years,
-          r.education_requirements,
-          (
-            SELECT skill_name as skillName, weight, is_required as isRequired
-            FROM role_skills
-            WHERE role_id = r.id
-            FOR JSON PATH
-          ) as skills,
-          (
-            SELECT question_text as questionText, weight
-            FROM role_questions
-            WHERE role_id = r.id AND is_active = 1
-            FOR JSON PATH
-          ) as questions
-        FROM roles r
-        WHERE r.id = @roleId
-      `)
-    
-    const role = {
-      title: roleData.recordset[0].title,
-      skills: JSON.parse(roleData.recordset[0].skills || '[]'),
-      questions: JSON.parse(roleData.recordset[0].questions || '[]'),
-      requirements: {
-        experience: {
-          min: roleData.recordset[0].min_experience_years || 0,
-          max: roleData.recordset[0].max_experience_years || 10
-        },
-        education: roleData.recordset[0].education_requirements
-      }
-    }
+    const fileCount = files.length
 
-    // Initialize services
-    const uploader = new EvaluationFileUploader()
-    const extractor = new PDFTextExtractor()
-    const analyzer = new EvaluationAnalyzer()
-    
-    // Update evaluation status to processing
+    console.log(`📋 Processing evaluation ${evaluationId} with ${fileCount} files`)
+
+    // Update evaluation status
     await pool.request()
       .input('evaluationId', sql.NVarChar, evaluationId)
       .input('status', sql.NVarChar, 'processing')
+      .input('totalFiles', sql.Int, fileCount)
       .query(`
         UPDATE evaluation_sessions 
-        SET status = @status, updated_at = GETUTCDATE()
+        SET status = @status, 
+            total_files = @totalFiles,
+            updated_at = GETDATE()
         WHERE id = @evaluationId
       `)
 
-    let processedCount = 0
-    let failedCount = 0
-    const results = []
+    // Determine processing strategy based on file count
+    const useQueue = fileCount > 10 && evaluationQueue.isAvailable()
 
-    // Process each file
-    for (const file of files) {
-      try {
-        // 1. Upload to Azure Blob Storage
-        const fileBuffer = Buffer.from(file.content, 'base64')
-        const { blobUrl, blobFilename } = await uploader.uploadFile(
-          fileBuffer,
-          file.name,
-          file.type || 'application/pdf',
-          session.user.id,
-          evaluationId
-        )
+    if (useQueue) {
+      // QUEUE MODE: Send to Azure Service Bus for async processing
+      console.log(`🚀 Using queue mode for ${fileCount} files`)
 
-        // Create file record in database
-        const fileResult = await pool.request()
-          .input('sessionId', sql.NVarChar, evaluationId)
-          .input('fileName', sql.NVarChar, file.name)
-          .input('fileSize', sql.Int, file.size)
-          .input('blobUrl', sql.NVarChar, blobUrl)
-          .input('blobFilename', sql.NVarChar, blobFilename)
-          .input('mimeType', sql.NVarChar, file.type || 'application/pdf')
-          .query(`
-            INSERT INTO evaluation_files (
-              session_id, file_name, file_size, blob_url, blob_filename, 
-              mime_type, status, extraction_status, ai_analysis_status
-            )
-            OUTPUT INSERTED.id
-            VALUES (
-              @sessionId, @fileName, @fileSize, @blobUrl, @blobFilename,
-              @mimeType, 'uploaded', 'pending', 'pending'
-            )
-          `)
-        
-        const fileId = fileResult.recordset[0].id
+      const queueResult = await evaluationQueue.queueEvaluation({
+        evaluationId,
+        roleId: evaluation.roleId,
+        userId: session.user.id,
+        userEmail: evaluation.userEmail || session.user.email || '',
+        roleTitle: evaluation.roleTitle,
+        files: files.map((file: any) => ({
+          id: file.id || `file-${Date.now()}-${Math.random()}`,
+          filename: file.filename,
+          content: file.content // Already base64 from frontend
+        })),
+        timestamp: new Date().toISOString()
+      })
 
-        // 2. Extract text from PDF
-        const extractedData = await extractor.extractText(fileBuffer)
-        
-        // Update extraction status
-        await pool.request()
-          .input('fileId', sql.NVarChar, fileId)
-          .input('extractedText', sql.NText, extractedData.fullText.substring(0, 8000)) // Limit for storage
-          .query(`
-            UPDATE evaluation_files 
-            SET extracted_text = @extractedText,
-                extraction_status = 'completed'
-            WHERE id = @fileId
-          `)
-
-        // 3. Analyze with AI
-        const analysisResult = await analyzer.analyzeResume(
-          session.user.id,
-          extractedData.fullText,
-          role
-        )
-
-        // 4. Store results
-        await pool.request()
-          .input('sessionId', sql.NVarChar, evaluationId)
-          .input('fileId', sql.NVarChar, fileId)
-          .input('userId', sql.NVarChar, session.user.id)
-          .input('roleId', sql.NVarChar, evaluation.role_id)
-          .input('candidateName', sql.NVarChar, file.name.replace('.pdf', ''))
-          .input('overallScore', sql.Decimal(5, 2), analysisResult.overallScore)
-          .input('skillMatches', sql.NText, JSON.stringify(analysisResult.skillMatches))
-          .input('questionAnswers', sql.NText, JSON.stringify(analysisResult.questionAnswers))
-          .input('recommendations', sql.NText, analysisResult.recommendations)
-          .input('redFlags', sql.NText, JSON.stringify(analysisResult.redFlags))
-          .input('strengths', sql.NText, JSON.stringify(analysisResult.strengths))
-          .query(`
-            INSERT INTO evaluation_results (
-              session_id, file_id, user_id, role_id, candidate_name,
-              overall_score, skill_matches, question_answers,
-              recommendations, red_flags, ai_raw_response
-            )
-            VALUES (
-              @sessionId, @fileId, @userId, @roleId, @candidateName,
-              @overallScore, @skillMatches, @questionAnswers,
-              @recommendations, @redFlags, @strengths
-            )
-          `)
-
-        // Update file status
-        await pool.request()
-          .input('fileId', sql.NVarChar, fileId)
-          .query(`
-            UPDATE evaluation_files 
-            SET status = 'completed', ai_analysis_status = 'completed'
-            WHERE id = @fileId
-          `)
-
-        processedCount++
-        results.push({
-          fileId,
-          fileName: file.name,
-          score: analysisResult.overallScore,
-          status: 'success'
+      if (queueResult.success) {
+        return NextResponse.json({
+          success: true,
+          message: `${fileCount} files queued for processing. You'll be notified when complete.`,
+          data: {
+            evaluationId,
+            mode: 'async',
+            estimatedTime: `${Math.ceil(fileCount * 1.5)} minutes`,
+            notification: 'email'
+          }
         })
-
-      } catch (error) {
-        console.error(`Failed to process file ${file.name}:`, error)
-        failedCount++
-        results.push({
-          fileName: file.name,
-          status: 'failed',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
+      } else {
+        console.warn('⚠️ Queue failed, falling back to direct processing')
+        // Fall through to direct processing
       }
-
-      // Update progress
-      await pool.request()
-        .input('evaluationId', sql.NVarChar, evaluationId)
-        .input('processedFiles', sql.Int, processedCount)
-        .input('failedFiles', sql.Int, failedCount)
-        .query(`
-          UPDATE evaluation_sessions 
-          SET processed_files = @processedFiles,
-              failed_files = @failedFiles,
-              updated_at = GETUTCDATE()
-          WHERE id = @evaluationId
-        `)
     }
 
-    // Calculate and update final stats
-    const statsResult = await pool.request()
-      .input('sessionId', sql.NVarChar, evaluationId)
+    // DIRECT MODE: Process immediately (for small batches or queue failure)
+    console.log(`⚡ Using direct mode for ${fileCount} files`)
+
+    if (fileCount > 50) {
+      return NextResponse.json({
+        success: false,
+        message: 'Too many files for direct processing. Please try again later or process in smaller batches.',
+        data: {
+          maxFiles: 50,
+          providedFiles: fileCount
+        }
+      }, { status: 400 })
+    }
+
+    // Process files directly
+    const uploader = new EvaluationFileUploader()
+    const pdfExtractor = new PDFTextExtractor()
+    const analyzer = new EvaluationAnalyzer()
+
+    // Load role skills and questions
+    const skillsResult = await pool.request()
+      .input('roleId', sql.NVarChar, evaluation.roleId)
       .query(`
-        SELECT 
-          AVG(overall_score) as avgScore,
-          COUNT(CASE WHEN overall_score >= 70 THEN 1 END) as topCandidates
-        FROM evaluation_results
-        WHERE session_id = @sessionId
+        SELECT id, skill_name, weight, is_required
+        FROM role_skills
+        WHERE role_id = @roleId
+        ORDER BY weight DESC
       `)
 
-    const stats = statsResult.recordset[0]
+    const questionsResult = await pool.request()
+      .input('roleId', sql.NVarChar, evaluation.roleId)
+      .query(`
+        SELECT id, question_text, weight
+        FROM role_questions
+        WHERE role_id = @roleId
+        ORDER BY weight DESC
+      `)
 
-    // Update evaluation as completed
+    const skills = skillsResult.recordset.map(s => ({
+      name: s.skill_name,
+      weight: s.weight,
+      required: s.is_required
+    }))
+
+    const questions = questionsResult.recordset.map(q => ({
+      text: q.question_text,
+      weight: q.weight
+    }))
+
+    let processedCount = 0
+    let failedCount = 0
+    const errors: any[] = []
+
+    // Process files with concurrency control
+    const BATCH_SIZE = 5
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE)
+      
+      const batchPromises = batch.map(async (file: any) => {
+        try {
+          // Upload file
+          const uploadResult = await uploader.uploadEvaluationFile(
+            evaluationId,
+            file.filename,
+            Buffer.from(file.content.split(',')[1] || file.content, 'base64')
+          )
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || 'Upload failed')
+          }
+
+          // Extract text
+          const fileBuffer = Buffer.from(file.content.split(',')[1] || file.content, 'base64')
+          const textResult = await pdfExtractor.extractText(fileBuffer)
+
+          if (!textResult.success || !textResult.text) {
+            throw new Error('Failed to extract text from PDF')
+          }
+
+          // Analyze with AI
+          const analysisResult = await analyzer.analyzeResume(
+            textResult.text,
+            evaluation.roleId,
+            skills,
+            questions
+          )
+
+          // Save result to database
+          await pool!.request()
+            .input('evaluationId', sql.NVarChar, evaluationId)
+            .input('fileId', sql.NVarChar, uploadResult.fileId)
+            .input('filename', sql.NVarChar, file.filename)
+            .input('overallScore', sql.Int, analysisResult.overallScore)
+            .input('skillsAnalysis', sql.NVarChar, JSON.stringify(analysisResult.skillsAnalysis))
+            .input('questionsAnalysis', sql.NVarChar, JSON.stringify(analysisResult.questionsAnalysis))
+            .input('recommendations', sql.NVarChar, JSON.stringify(analysisResult.recommendations))
+            .input('redFlags', sql.NVarChar, JSON.stringify(analysisResult.redFlags))
+            .input('extractedText', sql.NText, textResult.text)
+            .query(`
+              INSERT INTO evaluation_results (
+                id, evaluation_id, file_id, filename, overall_score,
+                skills_analysis, questions_analysis, recommendations, red_flags,
+                extracted_text, created_at
+              ) VALUES (
+                NEWID(), @evaluationId, @fileId, @filename, @overallScore,
+                @skillsAnalysis, @questionsAnalysis, @recommendations, @redFlags,
+                @extractedText, GETDATE()
+              )
+            `)
+
+          processedCount++
+          return { success: true, fileId: uploadResult.fileId }
+
+        } catch (error) {
+          failedCount++
+          console.error(`Failed to process ${file.filename}:`, error)
+          errors.push({
+            filename: file.filename,
+            error: error instanceof Error ? error.message : 'Processing failed'
+          })
+          return { success: false, error }
+        }
+      })
+
+      await Promise.all(batchPromises)
+    }
+
+    // Update evaluation status
+    const finalStatus = failedCount === 0 ? 'completed' : 'completed_with_errors'
     await pool.request()
       .input('evaluationId', sql.NVarChar, evaluationId)
-      .input('status', sql.NVarChar, failedCount === files.length ? 'failed' : 'completed')
-      .input('avgScore', sql.Decimal(5, 2), stats.avgScore || 0)
-      .input('topCandidates', sql.Int, stats.topCandidates || 0)
+      .input('status', sql.NVarChar, finalStatus)
+      .input('processedCount', sql.Int, processedCount)
+      .input('failedCount', sql.Int, failedCount)
       .query(`
         UPDATE evaluation_sessions 
         SET status = @status,
-            average_score = @avgScore,
-            top_candidates = @topCandidates,
-            completed_at = GETUTCDATE(),
-            updated_at = GETUTCDATE()
+            files_processed = @processedCount,
+            files_failed = @failedCount,
+            completed_at = GETDATE(),
+            updated_at = GETDATE()
         WHERE id = @evaluationId
       `)
 
     return NextResponse.json({
-      success: true,
-      message: `Processed ${processedCount} files successfully`,
+      success: failedCount === 0,
+      message: `Processed ${processedCount} of ${fileCount} files successfully`,
       data: {
         evaluationId,
-        processed: processedCount,
-        failed: failedCount,
-        results,
-        averageScore: stats.avgScore || 0,
-        topCandidates: stats.topCandidates || 0
+        mode: 'direct',
+        processedCount,
+        failedCount,
+        errors: errors.length > 0 ? errors : undefined
       }
     })
 
   } catch (error) {
-    console.error('Evaluation processing error:', error)
+    console.error('Error processing evaluation:', error)
+    
+    // Try to update evaluation status to failed
+    if (pool) {
+      try {
+        const { evaluationId } = await request.json()
+        await pool.request()
+          .input('evaluationId', sql.NVarChar, evaluationId)
+          .input('status', sql.NVarChar, 'failed')
+          .query(`
+            UPDATE evaluation_sessions 
+            SET status = @status, 
+                updated_at = GETDATE()
+            WHERE id = @evaluationId
+          `)
+      } catch (updateError) {
+        console.error('Failed to update evaluation status:', updateError)
+      }
+    }
+
     return NextResponse.json(
       { 
         success: false, 

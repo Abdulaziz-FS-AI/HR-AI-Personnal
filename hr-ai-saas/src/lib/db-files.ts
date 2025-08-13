@@ -37,6 +37,24 @@ export interface UploadSession {
   expiresAt: Date
 }
 
+export interface BatchSession {
+  id: string
+  userId: string
+  roleId: string | null
+  sessionToken: string
+  totalFiles: number
+  totalProcessed: number
+  totalFailed: number
+  status: 'pending' | 'processing' | 'completed' | 'completed_with_errors' | 'failed' | 'cancelled'
+  priority: 'low' | 'normal' | 'high'
+  notificationEmail: string
+  estimatedCompletionTime: Date
+  completedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+  expiresAt: Date
+}
+
 export interface FileUpload {
   id: string
   sessionId: string
@@ -476,5 +494,143 @@ export async function getFilesByStatus(processingStatus: FileRecord['processingS
   } catch (error) {
     console.error('Database error getting files by status:', error)
     return []
+  }
+}
+
+// Bulk processing functions
+export async function queueBulkProcessing(queueData: {
+  sessionId: string
+  userId: string
+  roleId: string | null
+  priority: number
+  fileCount: number
+  estimatedTimeMinutes: number
+}): Promise<boolean> {
+  try {
+    const pool = await getDbConnection()
+    await pool.request()
+      .input('sessionId', sql.UniqueIdentifier, queueData.sessionId)
+      .input('userId', sql.UniqueIdentifier, queueData.userId)
+      .input('roleId', sql.UniqueIdentifier, queueData.roleId)
+      .input('queueType', sql.NVarChar, 'bulk_processing')
+      .input('priority', sql.Int, queueData.priority)
+      .input('fileCount', sql.Int, queueData.fileCount)
+      .input('estimatedTimeMinutes', sql.Int, queueData.estimatedTimeMinutes)
+      .input('scheduledAt', sql.DateTime2, new Date())
+      .query(`
+        INSERT INTO processing_queue (
+          queue_type, priority, reference_id, user_id, role_id, 
+          file_count, estimated_time_minutes, status, scheduled_at
+        )
+        VALUES (
+          @queueType, @priority, @sessionId, @userId, @roleId,
+          @fileCount, @estimatedTimeMinutes, 'pending', @scheduledAt
+        )
+      `)
+    
+    return true
+  } catch (error) {
+    console.error('Database error queuing bulk processing:', error)
+    return false
+  }
+}
+
+export async function getBatchSession(sessionId: string): Promise<BatchSession | null> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .query(`
+        SELECT id, user_id as userId, role_id as roleId, session_token as sessionToken,
+               total_files as totalFiles, total_processed as totalProcessed,
+               total_failed as totalFailed, status, priority,
+               notification_email as notificationEmail,
+               estimated_completion_time as estimatedCompletionTime,
+               completed_at as completedAt, created_at as createdAt,
+               updated_at as updatedAt, expires_at as expiresAt
+        FROM batch_sessions 
+        WHERE id = @sessionId
+      `)
+    
+    return result.recordset[0] || null
+  } catch (error) {
+    console.error('Database error getting batch session:', error)
+    return null
+  }
+}
+
+export async function getBatchSessionFiles(sessionId: string): Promise<FileRecord[]> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .query(`
+        SELECT id, user_id as userId, role_id as roleId, original_filename as originalFilename,
+               blob_filename as blobFilename, file_size as fileSize, mime_type as mimeType,
+               blob_url as blobUrl, upload_status as uploadStatus, processing_status as processingStatus,
+               extracted_text as extractedText, ai_analysis as aiAnalysis, ai_score as aiScore,
+               ai_decision as aiDecision, created_at as createdAt, updated_at as updatedAt,
+               is_active as isActive, processing_order as processingOrder
+        FROM files
+        WHERE session_id = @sessionId AND is_active = 1
+        ORDER BY processing_order ASC, created_at ASC
+      `)
+    
+    return result.recordset
+  } catch (error) {
+    console.error('Database error getting batch session files:', error)
+    return []
+  }
+}
+
+export async function updateBatchProgress(sessionId: string, updates: {
+  totalProcessed?: number
+  totalFailed?: number
+  status?: BatchSession['status']
+  completedAt?: Date
+}): Promise<boolean> {
+  try {
+    const pool = await getDbConnection()
+    
+    const updateFields = []
+    const request = pool.request()
+      .input('sessionId', sql.UniqueIdentifier, sessionId)
+      .input('updatedAt', sql.DateTime2, new Date())
+    
+    if (updates.totalProcessed !== undefined) {
+      updateFields.push('total_processed = @totalProcessed')
+      request.input('totalProcessed', sql.Int, updates.totalProcessed)
+    }
+    
+    if (updates.totalFailed !== undefined) {
+      updateFields.push('total_failed = @totalFailed')
+      request.input('totalFailed', sql.Int, updates.totalFailed)
+    }
+    
+    if (updates.status) {
+      updateFields.push('status = @status')
+      request.input('status', sql.NVarChar, updates.status)
+    }
+    
+    if (updates.completedAt) {
+      updateFields.push('completed_at = @completedAt')
+      request.input('completedAt', sql.DateTime2, updates.completedAt)
+    }
+    
+    if (updateFields.length === 0) return true
+    
+    updateFields.push('updated_at = @updatedAt')
+    
+    const query = `
+      UPDATE batch_sessions 
+      SET ${updateFields.join(', ')}
+      WHERE id = @sessionId
+    `
+    
+    await request.query(query)
+    return true
+  } catch (error) {
+    console.error('Database error updating batch progress:', error)
+    return false
   }
 }

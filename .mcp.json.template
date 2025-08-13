@@ -8,7 +8,7 @@
         "nia-mcp-server"
       ],
       "env": {
-        "NIA_API_KEY": "nk_qQsP2eCfXvV2oJJY1Gw3ETGoYAwRPoo5",
+        "NIA_API_KEY": "YOUR_NIA_API_KEY_HERE",
         "NIA_API_URL": "https://apigcp.trynia.ai/"
       }
     }

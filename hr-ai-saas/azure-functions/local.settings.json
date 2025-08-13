@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AZURE_SERVICE_BUS_CONNECTION_STRING": "",
+    "AZURE_STORAGE_CONNECTION_STRING": "",
+    "DB_SERVER": "",
+    "DB_DATABASE": "",
+    "DB_USERNAME": "",
+    "DB_PASSWORD": "",
+    "HYPERBOLIC_API_KEY": "",
+    "INTERNAL_API_KEY": "",
+    "VERCEL_APP_URL": ""
+  }
+}
