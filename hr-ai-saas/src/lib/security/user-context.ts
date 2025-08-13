@@ -29,7 +29,7 @@ export async function requireUserContext(
   try {
     pool = await getDbConnection()
     const result = await pool.request()
-      .input('userId', sql.NVarChar, session.user.id) // Changed to NVarChar for compatibility
+      .input('userId', sql.UniqueIdentifier, session.user.id) // Use UniqueIdentifier to match table schema
       .query(`
         SELECT 
           id,
@@ -94,7 +94,7 @@ export async function validateResourceOwnership(
     
     const result = await pool.request()
       .input('resourceId', sql.NVarChar, resourceId)
-      .input('userId', sql.NVarChar, userId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .query(query)
     
     return result.recordset.length > 0
@@ -124,7 +124,7 @@ export async function logDataAccess(
   try {
     pool = await getDbConnection()
     await pool.request()
-      .input('userId', sql.NVarChar, userId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .input('action', sql.NVarChar, action)
       .input('resourceType', sql.NVarChar, resourceType)
       .input('resourceId', sql.NVarChar, resourceId)
@@ -157,7 +157,7 @@ export async function checkUserQuota(
     
     // Get user's subscription tier
     const userResult = await pool.request()
-      .input('userId', sql.NVarChar, userId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .query(`
         SELECT subscription_tier FROM users WHERE id = @userId
       `)
