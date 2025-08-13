@@ -90,7 +90,7 @@ export class EvaluationAnalyzer {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-          model: 'meta-llama/Llama-3.3-70B-Instruct',
+          model: 'openai/gpt-oss-120b',
           messages: [
             {
               role: 'system',
@@ -101,9 +101,9 @@ export class EvaluationAnalyzer {
               content: prompt
             }
           ],
-          max_tokens: 1500,
-          temperature: 0.1,
-          top_p: 0.9,
+          max_tokens: 2000,
+          temperature: 0.15,
+          top_p: 0.85,
           stream: false
         })
       })
@@ -217,15 +217,9 @@ Provide comprehensive analysis in the specified JSON format.`
    * System prompt for consistent JSON output
    */
   private getSystemPrompt(): string {
-    return `You are an expert HR AI assistant specializing in resume analysis and candidate evaluation.
+    return `You are an HR AI assistant for resume analysis.
 
-CORE RESPONSIBILITIES:
-- Analyze resumes against specific job requirements
-- Provide objective, evidence-based assessments  
-- Score candidates fairly using weighted criteria
-- Identify both strengths and potential concerns
-
-CRITICAL: Always respond with valid JSON in exactly this format:
+Always respond with valid JSON in this exact format:
 {
   "overallScore": <0-100>,
   "skillMatches": [
@@ -233,7 +227,7 @@ CRITICAL: Always respond with valid JSON in exactly this format:
       "skill": "<skill name>",
       "found": <true/false>,
       "confidence": <0-100>,
-      "evidence": "<brief quote from resume if found>"
+      "evidence": "<brief quote if found>"
     }
   ],
   "questionAnswers": [
@@ -243,18 +237,17 @@ CRITICAL: Always respond with valid JSON in exactly this format:
       "score": <0-10>
     }
   ],
-  "recommendations": "<paragraph about candidate strengths>",
+  "recommendations": "<paragraph about strengths>",
   "redFlags": ["<concern 1>", "<concern 2>"],
   "strengths": ["<strength 1>", "<strength 2>"]
 }
 
-EVALUATION GUIDELINES:
-- Base all assessments on evidence from the resume
-- Consider skill weight when scoring (higher weight = more important)
-- Be objective and avoid bias
+Guidelines:
+- Base assessments on resume evidence
+- Higher weighted skills/questions influence overall score more
+- Score questions 0-10 based on how well resume addresses them
 - Provide specific evidence for skill matches
-- Score questions on a 0-10 scale based on how well the resume addresses them
-- Higher weighted skills/questions should influence overall score more`
+- Be objective and avoid bias`
   }
 
   /**
