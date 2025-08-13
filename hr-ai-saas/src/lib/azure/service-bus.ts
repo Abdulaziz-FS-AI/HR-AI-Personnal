@@ -63,6 +63,36 @@ class ServiceBusService {
   }
 
   /**
+   * Retry operation with exponential backoff
+   */
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    initialDelayMs: number = 1000
+  ): Promise<T> {
+    let lastError: Error
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation()
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error')
+        
+        if (attempt === maxRetries) {
+          throw lastError
+        }
+        
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = initialDelayMs * Math.pow(2, attempt)
+        console.warn(`Service Bus operation failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`, error)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+    
+    throw lastError!
+  }
+
+  /**
    * Get or create a sender for a specific queue
    */
   private async getSender(queueName: string): Promise<ServiceBusSender> {
@@ -77,7 +107,7 @@ class ServiceBusService {
    * Send file for processing (PDF extraction)
    */
   async queueFileForProcessing(message: FileProcessingMessage): Promise<void> {
-    try {
+    await this.retryOperation(async () => {
       const sender = await this.getSender(this.config.queueNames.fileProcessing)
       
       const serviceBusMessage: ServiceBusMessage = {
@@ -97,11 +127,11 @@ class ServiceBusService {
       }
 
       await sender.sendMessages(serviceBusMessage)
-      console.log(`File ${message.fileId} queued for processing`)
-    } catch (error) {
-      console.error('Error queueing file for processing:', error)
+      console.log(`✅ File ${message.fileId} queued for processing`)
+    }).catch(error => {
+      console.error('❌ Failed to queue file for processing:', error)
       throw new Error(`Failed to queue file for processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    })
   }
 
   /**

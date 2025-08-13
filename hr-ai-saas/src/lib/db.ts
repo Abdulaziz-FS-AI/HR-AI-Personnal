@@ -25,28 +25,104 @@ function validateDatabaseConfig() {
 // Validate configuration on module load
 validateDatabaseConfig()
 
-const config = {
+const config: sql.config = {
   server: process.env.AZURE_SQL_SERVER!,
   database: process.env.AZURE_SQL_DATABASE!,
   user: process.env.AZURE_SQL_USER!,
   password: process.env.AZURE_SQL_PASSWORD!,
+  pool: {
+    max: 5, // Maximum number of connections in pool
+    min: 1, // Minimum number of connections in pool
+    idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+    acquireTimeoutMillis: 30000, // Maximum time to wait for a connection
+  },
   options: {
     encrypt: true,
     trustServerCertificate: false,
-    connectionTimeout: 30000,
-    requestTimeout: 30000,
+    enableArithAbort: true,
   },
+  connectionTimeout: 30000,
+  requestTimeout: 30000,
+  cancelTimeout: 5000,
 }
 
-// Serverless-compatible connection function (no global pooling)
-export async function getDbConnection() {
+// Global connection pool for serverless optimization
+let globalPool: sql.ConnectionPool | null = null
+let poolPromise: Promise<sql.ConnectionPool> | null = null
+
+// Serverless-optimized connection function with proper pooling
+export async function getDbConnection(): Promise<sql.ConnectionPool> {
   try {
-    const pool = new sql.ConnectionPool(config)
-    await pool.connect()
-    return pool
+    // Return existing pool if available and connected
+    if (globalPool && globalPool.connected) {
+      return globalPool
+    }
+
+    // If pool creation is in progress, wait for it
+    if (poolPromise) {
+      return await poolPromise
+    }
+
+    // Create new pool
+    poolPromise = createPool()
+    globalPool = await poolPromise
+    poolPromise = null
+
+    return globalPool
   } catch (error) {
+    poolPromise = null
+    globalPool = null
     console.error('Database connection failed:', error)
     throw new Error(`Failed to connect to Azure SQL Database: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+async function createPool(): Promise<sql.ConnectionPool> {
+  const pool = new sql.ConnectionPool(config)
+  
+  // Add connection event handlers
+  pool.on('connect', () => {
+    console.log('✅ Database connection established')
+  })
+  
+  pool.on('error', (err) => {
+    console.error('❌ Database pool error:', err)
+    globalPool = null
+    poolPromise = null
+  })
+
+  await pool.connect()
+  return pool
+}
+
+// Graceful cleanup function for serverless environments
+export async function closeDbConnection() {
+  try {
+    if (globalPool) {
+      await globalPool.close()
+      globalPool = null
+      poolPromise = null
+      console.log('✅ Database pool closed')
+    }
+  } catch (error) {
+    console.error('Error closing database pool:', error)
+  }
+}
+
+// Health check function
+export async function checkDbHealth(): Promise<{ connected: boolean; poolSize?: number; error?: string }> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request().query('SELECT 1 as test')
+    return {
+      connected: true,
+      poolSize: pool.pool?.size || 0
+    }
+  } catch (error) {
+    return {
+      connected: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
   }
 }
 
@@ -154,8 +230,7 @@ export interface Role {
 }
 
 export async function getRolesByUserId(userId: string): Promise<Role[]> {
-  try {
-    const pool = await getDbConnection()
+  return await executeQuery(async (pool) => {
     const result = await pool.request()
       .input('userId', sql.UniqueIdentifier, userId)
       .query(`
@@ -170,10 +245,10 @@ export async function getRolesByUserId(userId: string): Promise<Role[]> {
       `)
     
     return result.recordset
-  } catch (error) {
+  }).catch(error => {
     console.error('Database error:', error)
     return []
-  }
+  })
 }
 
 export async function createRole(roleData: Omit<Role, 'id' | 'createdAt' | 'updatedAt' | 'isActive'>): Promise<Role | null> {
