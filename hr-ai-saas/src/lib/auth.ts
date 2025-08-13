@@ -33,6 +33,7 @@ function validateAuthConfig() {
 validateAuthConfig()
 
 const authConfig = {
+  debug: process.env.NODE_ENV === 'development',
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -79,7 +80,7 @@ const authConfig = {
     })
   ],
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
@@ -87,6 +88,20 @@ const authConfig = {
     signIn: "/login",
     signUp: "/register",
     error: "/login",
+  },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' 
+        ? `__Secure-authjs.session-token` 
+        : `authjs.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 30 * 24 * 60 * 60 // 30 days
+      }
+    }
   },
   callbacks: {
     async signIn({ user, account }: { user: any; account: any }) {

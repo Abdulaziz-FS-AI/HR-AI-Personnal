@@ -5,22 +5,43 @@ export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/register', '/api/auth', '/api/health', '/api/deploy-schema']
+  const publicRoutes = [
+    '/login', 
+    '/register', 
+    '/api/auth', 
+    '/api/health', 
+    '/api/deploy-schema',
+    '/api/check-schema'
+  ]
   
   // Check if the request is for a public route
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
   
-  // Check if user has auth session
-  const hasAuthSession = request.cookies.has('authjs.session-token') || 
-                        request.cookies.has('__Secure-authjs.session-token')
+  // Enhanced session detection - check for all possible NextAuth cookie variants
+  const hasAuthSession = checkForAuthSession(request)
   
-  // Redirect unauthenticated users to login
-  if (!isPublicRoute && !hasAuthSession) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Always allow access to public routes
+  if (isPublicRoute) {
+    return NextResponse.next()
+  }
+  
+  // For protected routes, redirect to login if no session
+  if (!hasAuthSession) {
+    // Add current path as redirect parameter
+    const loginUrl = new URL('/login', request.url)
+    if (pathname !== '/login') {
+      loginUrl.searchParams.set('callbackUrl', pathname)
+    }
+    return NextResponse.redirect(loginUrl)
   }
   
   // Redirect authenticated users from login/register to dashboard
   if (hasAuthSession && (pathname === '/login' || pathname === '/register')) {
+    // Check for callback URL
+    const callbackUrl = request.nextUrl.searchParams.get('callbackUrl')
+    if (callbackUrl && callbackUrl !== '/login' && callbackUrl !== '/register') {
+      return NextResponse.redirect(new URL(callbackUrl, request.url))
+    }
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
   
@@ -34,6 +55,32 @@ export function middleware(request: NextRequest) {
   }
   
   return NextResponse.next()
+}
+
+/**
+ * Check for authentication session with enhanced cookie detection
+ */
+function checkForAuthSession(request: NextRequest): boolean {
+  // List of possible NextAuth session cookie names
+  const sessionCookieNames = [
+    'authjs.session-token',
+    '__Secure-authjs.session-token',
+    'next-auth.session-token',
+    '__Secure-next-auth.session-token',
+    // Legacy names
+    'next-auth.session-token.0',
+    'next-auth.session-token.1'
+  ]
+  
+  // Check if any of these session cookies exist and have content
+  for (const cookieName of sessionCookieNames) {
+    const cookie = request.cookies.get(cookieName)
+    if (cookie && cookie.value && cookie.value.length > 10) {
+      return true
+    }
+  }
+  
+  return false
 }
 
 export const config = {
