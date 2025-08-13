@@ -397,7 +397,22 @@ export function RoleCreationWizard({
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 relative">
+          {/* Cancel/Exit Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
+                localStorage.removeItem('roleDraft')
+                router.push('/roles')
+              }
+            }}
+            className="absolute top-0 right-0 text-gray-500 hover:text-gray-700"
+          >
+            ✕ Cancel
+          </Button>
+          
           <h1 className="text-3xl font-bold text-gray-900">
             {isEditing ? 'Edit Role' : 'Create New Role'}
           </h1>

@@ -55,14 +55,12 @@ export async function getRoleById(roleId: string): Promise<Role | null> {
           employment_type as employmentType,
           min_experience_years as minExperience,
           max_experience_years as maxExperience,
-          salary_min as salaryMin,
-          salary_max as salaryMax,
           description,
           is_active as isActive,
           created_at as createdAt,
           updated_at as updatedAt
         FROM roles
-        WHERE id = @roleId
+        WHERE id = @roleId AND is_active = 1
       `)
     
     return result.recordset[0] || null
@@ -76,7 +74,7 @@ export async function getRolesByUserId(userId: string): Promise<Role[]> {
   try {
     const pool = await getDbConnection()
     const result = await pool.request()
-      .input('userId', sql.NVarChar, userId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .query(`
         SELECT 
           id,
@@ -87,14 +85,12 @@ export async function getRolesByUserId(userId: string): Promise<Role[]> {
           employment_type as employmentType,
           min_experience_years as minExperience,
           max_experience_years as maxExperience,
-          salary_min as salaryMin,
-          salary_max as salaryMax,
           description,
           is_active as isActive,
           created_at as createdAt,
           updated_at as updatedAt
         FROM roles
-        WHERE user_id = @userId
+        WHERE user_id = @userId AND is_active = 1
         ORDER BY created_at DESC
       `)
     
@@ -115,11 +111,10 @@ export async function getRoleSkills(roleId: string): Promise<RoleSkill[]> {
           id,
           role_id as roleId,
           skill_name as skillName,
-          description,
+          skill_category as description,
           weight,
           is_required as isRequired,
-          created_at as createdAt,
-          updated_at as updatedAt
+          created_at as createdAt
         FROM role_skills
         WHERE role_id = @roleId
         ORDER BY weight DESC
@@ -141,12 +136,11 @@ export async function getRoleQuestions(roleId: string): Promise<RoleQuestion[]> 
         SELECT 
           id,
           role_id as roleId,
-          question,
-          expected_answer as expectedAnswer,
+          question_text as question,
+          '' as expectedAnswer,
           weight,
-          order_index as orderIndex,
-          created_at as createdAt,
-          updated_at as updatedAt
+          1 as orderIndex,
+          created_at as createdAt
         FROM role_questions
         WHERE role_id = @roleId
         ORDER BY order_index ASC

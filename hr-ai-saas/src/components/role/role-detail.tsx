@@ -5,7 +5,7 @@ import { ArrowLeft, Upload, Users, Star, Calendar, MapPin, Building, GraduationC
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { type Role, type RoleSkill, type RoleQuestion } from "@/lib/db"
+import { type Role, type RoleSkill, type RoleQuestion } from "@/lib/db-roles"
 
 interface RoleDetailProps {
   role: Role
@@ -62,7 +62,7 @@ export function RoleDetail({ role, skills, questions }: RoleDetailProps) {
   }
 
   const skillsByCategory = skills.reduce((acc, skill) => {
-    const category = skill.skillCategory || 'Other'
+    const category = skill.description || 'Other'
     if (!acc[category]) acc[category] = []
     acc[category].push(skill)
     return acc
@@ -92,10 +92,10 @@ export function RoleDetail({ role, skills, questions }: RoleDetailProps) {
           </div>
         </div>
         <div className="flex gap-3">
-          <Link href={`/dashboard/roles/${role.id}/screen`}>
+          <Link href={`/evaluations/create?roleId=${role.id}`}>
             <Button className="flex items-center gap-2">
               <Upload className="w-4 h-4" />
-              Screen Resumes
+              Start Evaluation
             </Button>
           </Link>
         </div>
@@ -278,7 +278,7 @@ export function RoleDetail({ role, skills, questions }: RoleDetailProps) {
                               <p className="font-medium text-gray-900 mb-2">
                                 Question {index + 1}
                               </p>
-                              <p className="text-gray-700">{question.questionText}</p>
+                              <p className="text-gray-700">{question.question}</p>
                             </div>
                             <div className={`ml-4 px-2 py-1 rounded text-xs font-medium ${getWeightColor(question.weight)}`}>
                               {question.weight}/10
