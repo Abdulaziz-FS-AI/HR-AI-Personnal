@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Plus, Edit, Trash2, Users } from "lucide-react"
+import { Plus, Trash2, Users } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { type createRoleSchema } from "@/lib/validations/role"
@@ -26,25 +26,45 @@ export function RolesList({ initialRoles }: RolesListProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
 
   const handleDeleteRole = async (roleId: string) => {
-    if (!confirm("Are you sure you want to delete this role? This action cannot be undone.")) {
+    // Enhanced confirmation dialog
+    if (!confirm(
+      "⚠️ Delete Role\n\n" +
+      "Are you sure you want to permanently delete this role?\n\n" +
+      "This will also delete:\n" +
+      "• All associated skills and requirements\n" +
+      "• All custom questions\n" +
+      "• All evaluation history\n\n" +
+      "This action cannot be undone."
+    )) {
       return
     }
 
     setIsDeleting(roleId)
     try {
+      console.log('Deleting role:', roleId)
+      
       const response = await fetch(`/api/roles/${roleId}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       })
 
+      console.log('Delete response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to delete role')
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        console.error('Delete error response:', errorData)
+        throw new Error(errorData.message || 'Failed to delete role')
       }
 
+      // Remove from local state
       setRoles(prev => prev.filter(role => role.id !== roleId))
       toast.success("Role deleted successfully")
+      
     } catch (error) {
       console.error('Error deleting role:', error)
-      toast.error("Failed to delete role")
+      toast.error(error instanceof Error ? error.message : "Failed to delete role")
     } finally {
       setIsDeleting(null)
     }
@@ -154,17 +174,13 @@ export function RolesList({ initialRoles }: RolesListProps) {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Link href={`/roles/${role.id}/edit`}>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </Link>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                     onClick={() => handleDeleteRole(role.id)}
                     disabled={isDeleting === role.id}
+                    title="Delete role"
                   >
                     {isDeleting === role.id ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />

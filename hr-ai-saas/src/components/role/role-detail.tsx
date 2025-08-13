@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, Edit, Upload, Users, Star, Calendar, MapPin, Building, GraduationCap } from "lucide-react"
+import { ArrowLeft, Upload, Users, Star, Calendar, MapPin, Building, GraduationCap } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -92,12 +92,6 @@ export function RoleDetail({ role, skills, questions }: RoleDetailProps) {
           </div>
         </div>
         <div className="flex gap-3">
-          <Link href={`/dashboard/roles/${role.id}/edit`}>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Edit className="w-4 h-4" />
-              Edit Role
-            </Button>
-          </Link>
           <Link href={`/dashboard/roles/${role.id}/screen`}>
             <Button className="flex items-center gap-2">
               <Upload className="w-4 h-4" />
