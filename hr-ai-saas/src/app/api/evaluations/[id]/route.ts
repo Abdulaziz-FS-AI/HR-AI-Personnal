@@ -24,7 +24,7 @@ export async function GET(
     
     // Get evaluation session
     const sessionResult = await pool.request()
-      .input('evaluationId', sql.NVarChar, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('userId', sql.NVarChar, session.user.id)
       .query(`
         SELECT 
@@ -53,19 +53,17 @@ export async function GET(
 
     // Get evaluation results
     const resultsResult = await pool.request()
-      .input('sessionId', sql.NVarChar, evaluationId)
+      .input('sessionId', sql.UniqueIdentifier, evaluationId)
       .query(`
         SELECT 
           er.id,
           er.file_id as fileId,
           ef.file_name as fileName,
-          er.candidate_name as candidateName,
+          COALESCE(er.candidate_name, 'Unknown') as candidateName,
           er.overall_score as overallScore,
-          er.skill_matches as skillMatches,
-          er.question_answers as questionAnswers,
           er.recommendations,
           er.red_flags as redFlags,
-          er.ai_raw_response as strengths
+          er.ai_analysis as aiAnalysis
         FROM evaluation_results er
         JOIN evaluation_files ef ON er.file_id = ef.id
         WHERE er.session_id = @sessionId
@@ -73,18 +71,21 @@ export async function GET(
       `)
     
     // Parse JSON fields
-    const results = resultsResult.recordset.map(row => ({
-      id: row.id,
-      fileId: row.fileId,
-      fileName: row.fileName,
-      candidateName: row.candidateName,
-      overallScore: row.overallScore,
-      skillMatches: JSON.parse(row.skillMatches || '[]'),
-      questionAnswers: JSON.parse(row.questionAnswers || '[]'),
-      recommendations: row.recommendations || '',
-      redFlags: JSON.parse(row.redFlags || '[]'),
-      strengths: JSON.parse(row.strengths || '[]')
-    }))
+    const results = resultsResult.recordset.map(row => {
+      const aiAnalysis = row.aiAnalysis ? JSON.parse(row.aiAnalysis) : {}
+      return {
+        id: row.id,
+        fileId: row.fileId,
+        fileName: row.fileName,
+        candidateName: row.candidateName,
+        overallScore: row.overallScore,
+        skillMatches: aiAnalysis.skillMatches || [],
+        questionAnswers: aiAnalysis.questionAnswers || [],
+        recommendations: row.recommendations || '',
+        redFlags: JSON.parse(row.redFlags || '[]'),
+        strengths: aiAnalysis.strengths || []
+      }
+    })
 
     return NextResponse.json({
       success: true,

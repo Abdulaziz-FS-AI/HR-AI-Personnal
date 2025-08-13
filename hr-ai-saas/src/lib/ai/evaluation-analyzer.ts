@@ -35,7 +35,7 @@ export class EvaluationAnalyzer {
   constructor() {
     this.apiKey = process.env.HYPERBOLIC_API_KEY || ''
     if (!this.apiKey) {
-      throw new Error('Hyperbolic API key not configured')
+      throw new Error('Hyperbolic API key not configured - please set HYPERBOLIC_API_KEY environment variable')
     }
   }
 
@@ -90,7 +90,7 @@ export class EvaluationAnalyzer {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-          model: 'meta-llama/Llama-3.1-8B-Instruct',
+          model: 'meta-llama/Llama-3.3-70B-Instruct',
           messages: [
             {
               role: 'system',
@@ -102,8 +102,9 @@ export class EvaluationAnalyzer {
             }
           ],
           max_tokens: 1500,
-          temperature: 0.3,
-          top_p: 0.9
+          temperature: 0.1,
+          top_p: 0.9,
+          stream: false
         })
       })
 
@@ -128,39 +129,103 @@ export class EvaluationAnalyzer {
    */
   private buildPrompt(resumeText: string, role: RoleData): string {
     const skillsList = role.skills.map(s => 
-      `- ${s.skillName} (Weight: ${s.weight}/10${s.isRequired ? ', Required' : ''})`
+      `• ${s.skillName} [Weight: ${s.weight}/10]${s.isRequired ? ' [REQUIRED]' : ''}`
     ).join('\n')
 
     const questionsList = role.questions.map(q => 
-      `- ${q.questionText} (Weight: ${q.weight}/10)`
+      `• ${q.questionText} [Weight: ${q.weight}/10]`
     ).join('\n')
 
-    return `
-Analyze this resume for the ${role.title} position.
+    // Optimize resume text for better analysis
+    const optimizedResume = this.optimizeResumeText(resumeText)
 
-ROLE REQUIREMENTS:
-Skills to evaluate:
+    return `Analyze this resume for the "${role.title}" position.
+
+POSITION REQUIREMENTS:
+
+REQUIRED SKILLS (evaluate each):
 ${skillsList}
 
-Questions to answer:
+EVALUATION QUESTIONS (answer based on resume):
 ${questionsList}
 
-Experience Required: ${role.requirements?.experience?.min || 0}-${role.requirements?.experience?.max || 10} years
-Education: ${role.requirements?.education || 'Not specified'}
+EXPERIENCE REQUIREMENT: ${role.requirements?.experience?.min || 0}-${role.requirements?.experience?.max || 10} years
+EDUCATION REQUIREMENT: ${role.requirements?.education || 'Not specified'}
 
-RESUME TEXT:
-${resumeText.substring(0, 4000)} // Limit to 4000 chars for token limits
+RESUME TO ANALYZE:
+${optimizedResume}
 
-Provide a comprehensive analysis following the JSON format specified.
-`
+Provide comprehensive analysis in the specified JSON format.`
+  }
+
+  /**
+   * Optimize resume text for better analysis
+   */
+  private optimizeResumeText(text: string): string {
+    // Limit to ~6000 chars for token efficiency (70B model can handle more)
+    const maxLength = 6000
+    
+    if (text.length <= maxLength) {
+      return text.trim()
+    }
+
+    // Try to extract key sections if text is too long
+    const sections = this.extractSections(text)
+    
+    if (sections.contact || sections.skills || sections.experience) {
+      const prioritized = [
+        sections.contact,
+        sections.skills, 
+        sections.experience?.substring(0, maxLength * 0.5), // 50% for experience
+        sections.education?.substring(0, maxLength * 0.2),  // 20% for education  
+        sections.summary?.substring(0, maxLength * 0.1)     // 10% for summary
+      ].filter(Boolean).join('\n\n')
+      
+      return prioritized.substring(0, maxLength)
+    }
+    
+    // Fallback: just truncate
+    return text.substring(0, maxLength).trim()
+  }
+
+  /**
+   * Basic section extraction for resume text
+   */
+  private extractSections(text: string) {
+    const sections: any = {}
+    
+    // Simple pattern matching for key sections
+    const patterns = {
+      contact: /(?:contact|email|phone|address|linkedin|github)[\s\S]*?(?=\n\n|\n[A-Z]|$)/i,
+      summary: /(?:summary|objective|profile|about me)[\s\S]*?(?=\n\n|\n[A-Z]|$)/i,
+      experience: /(?:experience|employment|work history|professional)[\s\S]*?(?=education|skills|$)/i,
+      education: /(?:education|academic|qualification|degree)[\s\S]*?(?=\n\n|\n[A-Z]|$)/i,
+      skills: /(?:skills|technical|competencies|expertise)[\s\S]*?(?=\n\n|\n[A-Z]|$)/i
+    }
+    
+    for (const [section, pattern] of Object.entries(patterns)) {
+      const match = text.match(pattern)
+      if (match) {
+        sections[section] = match[0].trim()
+      }
+    }
+    
+    return sections
   }
 
   /**
    * System prompt for consistent JSON output
    */
   private getSystemPrompt(): string {
-    return `You are an expert HR AI assistant analyzing resumes. 
-Always respond with valid JSON in exactly this format:
+    return `You are an expert HR AI assistant specializing in resume analysis and candidate evaluation.
+
+CORE RESPONSIBILITIES:
+- Analyze resumes against specific job requirements
+- Provide objective, evidence-based assessments  
+- Score candidates fairly using weighted criteria
+- Identify both strengths and potential concerns
+
+CRITICAL: Always respond with valid JSON in exactly this format:
 {
   "overallScore": <0-100>,
   "skillMatches": [
@@ -183,7 +248,13 @@ Always respond with valid JSON in exactly this format:
   "strengths": ["<strength 1>", "<strength 2>"]
 }
 
-Be objective, thorough, and base all assessments on evidence from the resume.`
+EVALUATION GUIDELINES:
+- Base all assessments on evidence from the resume
+- Consider skill weight when scoring (higher weight = more important)
+- Be objective and avoid bias
+- Provide specific evidence for skill matches
+- Score questions on a 0-10 scale based on how well the resume addresses them
+- Higher weighted skills/questions should influence overall score more`
   }
 
   /**

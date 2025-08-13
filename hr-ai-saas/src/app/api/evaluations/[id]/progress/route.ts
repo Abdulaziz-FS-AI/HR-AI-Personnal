@@ -24,7 +24,7 @@ export async function GET(
 
     // Get evaluation session with progress details
     const evaluationResult = await pool.request()
-      .input('evaluationId', sql.NVarChar, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('userId', sql.NVarChar, session.user.id)
       .query(`
         SELECT 
@@ -68,7 +68,7 @@ export async function GET(
 
     // Get file-level progress
     const filesResult = await pool.request()
-      .input('evaluationId', sql.NVarChar, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .query(`
         SELECT 
           ef.id,

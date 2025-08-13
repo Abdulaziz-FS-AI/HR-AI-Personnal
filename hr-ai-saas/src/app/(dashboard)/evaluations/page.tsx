@@ -32,8 +32,8 @@ interface EvaluationSession {
   status: 'running' | 'completed' | 'failed' | 'pending'
   createdAt: string
   completedAt?: string
-  totalResumes: number
-  processedResumes: number
+  totalFiles: number
+  processedFiles: number
   averageScore?: number
   topCandidates: number
 }
@@ -256,7 +256,7 @@ export default function EvaluationsPage() {
                       </div>
                       <div className="flex items-center">
                         <Users className="w-4 h-4 mr-1" />
-                        {evaluation.processedResumes}/{evaluation.totalResumes} resumes
+                        {evaluation.processedFiles}/{evaluation.totalFiles} files
                       </div>
                       {evaluation.averageScore && (
                         <div className="flex items-center">
@@ -305,12 +305,12 @@ export default function EvaluationsPage() {
                   <div className="mt-4">
                     <div className="flex justify-between text-sm text-gray-600 mb-1">
                       <span>Progress</span>
-                      <span>{evaluation.processedResumes} / {evaluation.totalResumes}</span>
+                      <span>{evaluation.processedFiles} / {evaluation.totalFiles}</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                        style={{ width: `${(evaluation.processedResumes / evaluation.totalResumes) * 100}%` }}
+                        style={{ width: `${(evaluation.processedFiles / evaluation.totalFiles) * 100}%` }}
                       ></div>
                     </div>
                   </div>

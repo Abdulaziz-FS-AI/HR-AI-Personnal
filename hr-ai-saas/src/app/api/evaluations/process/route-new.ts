@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     
     // Verify evaluation belongs to user and get role info
     const evalCheck = await pool.request()
-      .input('evaluationId', sql.NVarChar, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('userId', sql.NVarChar, session.user.id)
       .query(`
         SELECT es.*, r.title as roleTitle, r.id as roleId
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Update evaluation status to processing
     await pool.request()
-      .input('evaluationId', sql.NVarChar, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('status', sql.NVarChar, 'processing')
       .query(`
         UPDATE evaluation_sessions 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         : 'completed_with_errors'
 
     await pool.request()
-      .input('evaluationId', sql.NVarChar, evaluationId)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('status', sql.NVarChar, finalStatus)
       .input('processedCount', sql.Int, result.processedCount)
       .input('failedCount', sql.Int, result.failedCount)
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
       try {
         const { evaluationId } = await request.json()
         await pool.request()
-          .input('evaluationId', sql.NVarChar, evaluationId)
+          .input('evaluationId', sql.UniqueIdentifier, evaluationId)
           .input('status', sql.NVarChar, 'failed')
           .query(`
             UPDATE evaluation_sessions 

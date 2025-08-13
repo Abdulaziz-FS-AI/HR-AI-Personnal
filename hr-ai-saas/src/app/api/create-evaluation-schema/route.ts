@@ -16,6 +16,7 @@ export async function GET() {
         status NVARCHAR(50) NOT NULL DEFAULT 'pending',
         total_files INT NOT NULL DEFAULT 0,
         processed_files INT NOT NULL DEFAULT 0,
+        failed_files INT NOT NULL DEFAULT 0,
         average_score DECIMAL(5,2) NULL,
         top_candidates INT DEFAULT 0,
         created_at DATETIME DEFAULT GETDATE(),
