@@ -52,16 +52,16 @@ export function RoleCreationWizard({
     questions: initialData?.questions || []
   })
 
-  // Auto-save draft functionality
+  // Auto-save draft functionality with debounce
   useEffect(() => {
-    const autoSave = () => {
-      if (roleData.job || roleData.requirements.length > 0 || roleData.skills.length > 0 || roleData.questions.length > 0) {
-        saveDraft()
-      }
-    }
+    const hasData = roleData.job || roleData.requirements.length > 0 || roleData.skills.length > 0 || roleData.questions.length > 0
+    if (!hasData) return
+    
+    const timeoutId = setTimeout(() => {
+      saveDraft()
+    }, 2000) // Auto-save 2 seconds after data changes
 
-    const interval = setInterval(autoSave, 30000) // Auto-save every 30 seconds
-    return () => clearInterval(interval)
+    return () => clearTimeout(timeoutId)
   }, [roleData])
 
   const handleJobDetailsSubmit = (jobData: JobDetailsStep) => {
@@ -307,11 +307,18 @@ export function RoleCreationWizard({
   }
 
   const handleFinalSubmit = () => {
-    // Prevent duplicate submissions
-    if (isLoading || isCreatingRole) {
+    // Prevent duplicate submissions with additional checks
+    if (isLoading || isCreatingRole || isSavingDraft) {
       console.log('Already processing, ignoring duplicate submission')
       return
     }
+    
+    // Debounce rapid clicks
+    if (Date.now() - (window.lastSubmitTime || 0) < 1000) {
+      console.log('Too fast, ignoring duplicate click')
+      return
+    }
+    window.lastSubmitTime = Date.now()
     
     if (isEditing && roleId) {
       updateRole()
@@ -603,13 +610,22 @@ function ReviewStep({ roleData, onSubmit, onPrevious, isLoading, isEditing }: Re
           </Button>
           
           <Button
-            onClick={onSubmit}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onSubmit()
+            }}
             disabled={isLoading || !job}
-            className="min-w-[160px]"
+            className="min-w-[160px] transition-all duration-200 hover:bg-primary/90"
           >
             {isLoading 
-              ? (isEditing ? "Updating..." : "Creating...") 
-              : (isEditing ? "Update Role" : "Create Role")
+              ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isEditing ? "Updating..." : "Creating..."}
+                </>
+              ) 
+              : (isEditing ? "Update Role" : "Review & Create Role")
             }
           </Button>
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useFieldArray, useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Plus, X, AlertCircle, HelpCircle, CheckCircle } from "lucide-react"
@@ -67,6 +67,11 @@ export function QuestionsBuilder({
 }: QuestionsBuilderProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState<number | null>(null)
+  
+  // Memoize validation to prevent excessive re-rendering
+  const getValidQuestionsCount = () => {
+    return watchedQuestions.filter(q => q?.questionText && q.questionText.trim().length >= 5).length
+  }
 
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionsStepSchema),
@@ -89,26 +94,36 @@ export function QuestionsBuilder({
   })
 
   const watchedQuestions = watch("questions")
+  
+  // Memoize validation results to prevent excessive computation
+  const validationResults = useMemo(() => {
+    return watchedQuestions.map(q => validateQuestion(q?.questionText || ""))
+  }, [watchedQuestions])
+  
+  const validQuestionsCount = useMemo(() => {
+    return validationResults.filter(v => v.isValid).length
+  }, [validationResults])
 
-  const addQuestion = () => {
+  const addQuestion = useCallback(() => {
     if (fields.length >= 5) return // Prevent adding more than 5 questions
     console.log('Adding new question, current count:', fields.length)
     append({ questionText: "", weight: 5, category: "" })
-  }
+  }, [fields.length, append])
 
-  const addSuggestedQuestion = (questionText: string, index: number) => {
+  const addSuggestedQuestion = useCallback((questionText: string, index: number) => {
     setValue(`questions.${index}.questionText`, questionText)
     setShowSuggestions(null)
-  }
+  }, [setValue])
 
-  const removeQuestion = (index: number) => {
+  const removeQuestion = useCallback((index: number) => {
     remove(index)
-  }
+    setShowSuggestions(null) // Close suggestions when removing
+  }, [remove])
 
   const handleFormSubmit = async (data: QuestionFormData) => {
     // Prevent double submission
-    if (isSubmitting) {
-      console.log('Already submitting, ignoring duplicate request')
+    if (isSubmitting || isLoading) {
+      console.log('Already submitting or loading, ignoring duplicate request')
       return
     }
     
@@ -127,13 +142,18 @@ export function QuestionsBuilder({
       })) as Question[]
       
       console.log('Submitting questions:', questions.length)
-      onSubmit(questions)
-      onNext()
+      await onSubmit(questions)
+      
+      // Small delay to ensure state is updated before proceeding
+      setTimeout(() => {
+        onNext()
+        setIsSubmitting(false)
+      }, 100)
+      
     } catch (error) {
       console.error('Questions submission error:', error)
       setIsSubmitting(false) // Reset on error
     }
-    // Note: Don't reset isSubmitting on success - let parent handle it
   }
 
   const getWeightColor = (weight: number) => {
@@ -189,7 +209,7 @@ export function QuestionsBuilder({
           {fields.length > 0 && (
             <div className="space-y-4">
               {fields.map((field, index) => {
-                const validation = validateQuestion(watchedQuestions[index]?.questionText || "")
+                const validation = validationResults[index] || { isValid: false, message: "" }
                 
                 return (
                   <div key={field.id} className="border rounded-lg p-4 bg-gray-50">
@@ -443,10 +463,10 @@ export function QuestionsBuilder({
               
               <Button
                 type="submit"
-                disabled={isSubmitting || isLoading || watchedQuestions.filter(q => validateQuestion(q.questionText).isValid).length === 0 && fields.length > 0}
+                disabled={isSubmitting || isLoading}
                 className="min-w-[120px]"
               >
-                {isSubmitting ? "Saving..." : "Review & Create Role"}
+                {(isSubmitting || isLoading) ? "Processing..." : "Review & Create Role"}
               </Button>
             </div>
           </div>
