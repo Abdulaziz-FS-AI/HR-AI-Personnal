@@ -117,10 +117,10 @@ export default function AnalyticsPage() {
           </p>
           <div className="space-x-3">
             <Button asChild>
-              <a href="/roles/create">Create Job Role</a>
+              <a href="/dashboard/roles/create">Create Job Role</a>
             </Button>
             <Button variant="outline" asChild>
-              <a href="/evaluations/create">Start Evaluation</a>
+              <a href="/dashboard/evaluations/create">Start Evaluation</a>
             </Button>
           </div>
         </div>

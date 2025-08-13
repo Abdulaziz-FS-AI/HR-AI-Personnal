@@ -46,10 +46,6 @@ export default function EvaluationsPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   // Fetch evaluations from API
-  useEffect(() => {
-    fetchEvaluations()
-  }, [])
-
   const fetchEvaluations = async () => {
     setIsLoading(true)
     try {
@@ -57,6 +53,8 @@ export default function EvaluationsPage() {
       if (response.ok) {
         const data = await response.json()
         setEvaluations(data.data || [])
+      } else {
+        console.error('Failed to fetch evaluations')
       }
     } catch (error) {
       console.error('Error fetching evaluations:', error)
@@ -64,6 +62,10 @@ export default function EvaluationsPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchEvaluations()
+  }, [])
 
   const getStatusBadge = (status: EvaluationSession['status']) => {
     switch (status) {
@@ -106,7 +108,7 @@ export default function EvaluationsPage() {
         </div>
         <div className="flex items-center space-x-3">
           <Button asChild variant="outline">
-            <Link href="/evaluations/create">
+            <Link href="/dashboard/evaluations/create">
               <Plus className="w-4 h-4 mr-2" />
               New Evaluation
             </Link>
@@ -228,7 +230,7 @@ export default function EvaluationsPage() {
                   : 'Get started by creating your first evaluation session.'}
               </p>
               <Button asChild>
-                <Link href="/evaluations/create">
+                <Link href="/dashboard/evaluations/create">
                   <Plus className="w-4 h-4 mr-2" />
                   Create First Evaluation
                 </Link>

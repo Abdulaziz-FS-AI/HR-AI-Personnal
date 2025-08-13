@@ -82,7 +82,7 @@ export default function CreateEvaluationPage() {
     loadRoles()
   }, [])
 
-  // Auto-generate evaluation name when role is selected
+  // Auto-generate evaluation name and load role details when role is selected
   useEffect(() => {
     if (selectedRole) {
       const date = new Date().toLocaleDateString('en-US', { 
@@ -90,8 +90,32 @@ export default function CreateEvaluationPage() {
         day: 'numeric' 
       })
       setEvaluationName(`${selectedRole.title} - ${date} Evaluation`)
+      
+      // Load role skills and questions
+      loadRoleDetails(selectedRole.id)
     }
   }, [selectedRole])
+
+  const loadRoleDetails = async (roleId: string) => {
+    try {
+      // Load skills
+      const skillsResponse = await fetch(`/api/role-skills?roleId=${roleId}`)
+      if (skillsResponse.ok) {
+        const skillsData = await skillsResponse.json()
+        setRoleSkills(skillsData.data || [])
+      }
+      
+      // Load questions
+      const questionsResponse = await fetch(`/api/role-questions?roleId=${roleId}`)
+      if (questionsResponse.ok) {
+        const questionsData = await questionsResponse.json()
+        setRoleQuestions(questionsData.data || [])
+      }
+    } catch (error) {
+      console.error('Failed to load role details:', error)
+      toast.error('Failed to load role requirements')
+    }
+  }
 
   const loadRoles = async () => {
     setIsLoadingRoles(true)
@@ -109,29 +133,6 @@ export default function CreateEvaluationPage() {
     }
   }
 
-  const loadRoleDetails = async (roleId: string) => {
-    setIsLoading(true)
-    try {
-      // Load skills
-      const skillsResponse = await fetch(`/api/role-skills?roleId=${roleId}`)
-      if (skillsResponse.ok) {
-        const skillsData = await skillsResponse.json()
-        setRoleSkills(skillsData.data || [])
-      }
-
-      // Load questions
-      const questionsResponse = await fetch(`/api/role-questions?roleId=${roleId}`)
-      if (questionsResponse.ok) {
-        const questionsData = await questionsResponse.json()
-        setRoleQuestions(questionsData.data || [])
-      }
-    } catch (error) {
-      console.error('Error loading role details:', error)
-      toast.error('Failed to load role details')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleRoleSelect = async (role: Role) => {
     setSelectedRole(role)
@@ -216,7 +217,9 @@ export default function CreateEvaluationPage() {
           const base64Content = await base64Promise
           
           fileDataArray.push({
+            id: crypto.randomUUID(),
             name: file.name,
+            filename: file.name,  // Backend expects 'filename'
             type: file.type,
             size: file.size,
             content: base64Content
@@ -259,14 +262,15 @@ export default function CreateEvaluationPage() {
       
       const processResult = await processResponse.json()
       
-      toast.success(`Evaluation completed! Processed ${processResult.data.processed} files.`)
+      toast.success(`Evaluation completed! Processed ${processResult.data.processedCount || processResult.data.processed || 0} files.`)
       
-      // Redirect to evaluations page
-      router.push('/evaluations')
+      // Redirect to evaluations dashboard
+      router.push('/dashboard/evaluations')
       
     } catch (error) {
       console.error('Error starting evaluation:', error)
-      toast.error('Failed to start evaluation')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start evaluation'
+      toast.error(errorMessage)
     } finally {
       setIsProcessing(false)
     }
@@ -349,7 +353,7 @@ export default function CreateEvaluationPage() {
                 <div className="text-center py-12">
                   <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">No roles found</p>
-                  <Button onClick={() => router.push('/roles/create')}>
+                  <Button onClick={() => router.push('/dashboard/roles/create')}>
                     Create Your First Role
                   </Button>
                 </div>

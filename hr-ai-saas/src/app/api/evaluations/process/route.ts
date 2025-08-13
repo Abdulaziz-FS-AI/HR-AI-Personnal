@@ -13,6 +13,7 @@ export const maxDuration = 300 // 5 minutes
 
 export async function POST(request: NextRequest) {
   let pool: sql.ConnectionPool | null = null
+  let evaluationId: string | null = null
   
   try {
     // Use consistent authentication
@@ -27,7 +28,9 @@ export async function POST(request: NextRequest) {
     )
     if (!rateLimitCheck.allowed) return rateLimitCheck.response
 
-    const { evaluationId, files } = await request.json()
+    const body = await request.json()
+    evaluationId = body.evaluationId
+    const files = body.files
     
     if (!evaluationId || !files || files.length === 0) {
       return NextResponse.json(
@@ -192,9 +195,9 @@ export async function POST(request: NextRequest) {
           }
           const uploadResult = await uploader.uploadFile(
             fileBuffer,
-            file.filename,
+            file.filename || file.name,
             'application/pdf',
-            session.user.id,
+            userContext.userId,
             evaluationId
           )
 
@@ -211,7 +214,7 @@ export async function POST(request: NextRequest) {
 
           // Analyze with AI
           const analysisResult = await analyzer.analyzeResume(
-            session.user.id,
+            userContext.userId,
             textResult.fullText,
             {
               title: evaluation.roleTitle,
