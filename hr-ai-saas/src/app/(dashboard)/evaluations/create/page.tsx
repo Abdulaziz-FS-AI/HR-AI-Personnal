@@ -158,12 +158,13 @@ export default function CreateEvaluationPage() {
     
     try {
       // Step 1: Create evaluation session
+      // Generate proper UUIDs for files
       const sessionData = {
         name: evaluationName,
         roleId: selectedRole.id,
         roleTitle: selectedRole.title,
         files: fileStatuses.map(f => ({
-          id: `file-${Date.now()}-${Math.random()}`,
+          id: crypto.randomUUID(), // Generate proper UUID for database
           name: f.file.name,
           size: f.file.size
         }))

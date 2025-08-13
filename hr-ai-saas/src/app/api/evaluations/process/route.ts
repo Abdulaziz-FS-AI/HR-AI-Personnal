@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { requireUserContext } from '@/lib/security/user-context'
+import { withRateLimit } from '@/lib/security/rate-limit'
 import { evaluationQueue } from '@/lib/azure/evaluation-queue'
 import { EvaluationFileUploader } from '@/lib/azure/evaluation-uploader'
 import { PDFTextExtractor } from '@/lib/services/pdf-text-extractor'
@@ -14,13 +15,17 @@ export async function POST(request: NextRequest) {
   let pool: sql.ConnectionPool | null = null
   
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { success: false, message: 'Authentication required' },
-        { status: 401 }
-      )
-    }
+    // Use consistent authentication
+    const userContext = await requireUserContext(request)
+    
+    // Apply rate limiting
+    const rateLimitCheck = await withRateLimit(
+      request,
+      userContext.userId,
+      userContext.subscriptionTier,
+      'create'
+    )
+    if (!rateLimitCheck.allowed) return rateLimitCheck.response
 
     const { evaluationId, files } = await request.json()
     
@@ -36,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Verify evaluation belongs to user and get details
     const evalCheck = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
-      .input('userId', sql.UniqueIdentifier, session.user.id)
+      .input('userId', sql.UniqueIdentifier, userContext.userId)
       .query(`
         SELECT 
           es.*, 
@@ -84,12 +89,12 @@ export async function POST(request: NextRequest) {
       const queueResult = await evaluationQueue.queueEvaluation({
         evaluationId,
         roleId: evaluation.roleId,
-        userId: session.user.id,
-        userEmail: evaluation.userEmail || session.user.email || '',
+        userId: userContext.userId,
+        userEmail: evaluation.userEmail || userContext.email || '',
         roleTitle: evaluation.roleTitle,
         files: files.map((file: any) => ({
-          id: file.id || `file-${Date.now()}-${Math.random()}`,
-          filename: file.filename,
+          id: file.id || crypto.randomUUID(),
+          filename: file.filename || file.name,
           content: file.content // Already base64 from frontend
         })),
         timestamp: new Date().toISOString()
