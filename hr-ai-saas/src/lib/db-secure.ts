@@ -988,3 +988,67 @@ export async function getUserBatchSession(userId: string, sessionId: string) {
     return result.recordset[0] || null
   })
 }
+
+export async function updateEvaluationStatus(userId: string, evaluationId: string, status: string, completedAt?: Date) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const request = pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('evaluationId', sql.UniqueIdentifier, evaluationId)
+      .input('status', sql.NVarChar, status)
+      .input('updatedAt', sql.DateTime2, new Date())
+    
+    let updateFields = 'status = @status, updated_at = @updatedAt'
+    
+    if (completedAt) {
+      request.input('completedAt', sql.DateTime2, completedAt)
+      updateFields += ', completed_at = @completedAt'
+    }
+    
+    await request.query(`
+      UPDATE evaluation_sessions 
+      SET ${updateFields}
+      WHERE id = @evaluationId AND user_id = @userId
+    `)
+    
+    return true
+  })
+}
+
+export async function createEvaluationResult(userId: string, resultData: {
+  evaluationId: string
+  fileId: string
+  overallScore: number
+  skillsAnalysis: any
+  recommendations: string[]
+  redFlags: string[]
+  aiDecision: string
+  processingTime: number
+  metadata?: any
+}) {
+  return executeUserScopedQuery(userId, async (pool, uid) => {
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, uid)
+      .input('evaluationId', sql.UniqueIdentifier, resultData.evaluationId)
+      .input('fileId', sql.UniqueIdentifier, resultData.fileId)
+      .input('overallScore', sql.Float, resultData.overallScore)
+      .input('skillsAnalysis', sql.NVarChar, JSON.stringify(resultData.skillsAnalysis))
+      .input('recommendations', sql.NVarChar, JSON.stringify(resultData.recommendations))
+      .input('redFlags', sql.NVarChar, JSON.stringify(resultData.redFlags))
+      .input('aiDecision', sql.NVarChar, resultData.aiDecision)
+      .input('processingTime', sql.Int, resultData.processingTime)
+      .input('metadata', sql.NVarChar, resultData.metadata ? JSON.stringify(resultData.metadata) : null)
+      .query(`
+        INSERT INTO evaluation_results (
+          evaluation_id, file_id, user_id, overall_score, skills_analysis,
+          recommendations, red_flags, ai_decision, processing_time, metadata
+        )
+        OUTPUT INSERTED.id
+        VALUES (
+          @evaluationId, @fileId, @userId, @overallScore, @skillsAnalysis,
+          @recommendations, @redFlags, @aiDecision, @processingTime, @metadata
+        )
+      `)
+    
+    return result.recordset[0]?.id || null
+  })
+}

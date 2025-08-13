@@ -535,6 +535,44 @@ export async function queueBulkProcessing(queueData: {
   }
 }
 
+export async function createBatchSession(sessionData: Omit<BatchSession, 'id' | 'totalProcessed' | 'totalFailed' | 'createdAt' | 'updatedAt' | 'completedAt'>): Promise<BatchSession | null> {
+  try {
+    const pool = await getDbConnection()
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, sessionData.userId)
+      .input('roleId', sql.UniqueIdentifier, sessionData.roleId)
+      .input('sessionToken', sql.NVarChar, sessionData.sessionToken)
+      .input('totalFiles', sql.Int, sessionData.totalFiles)
+      .input('status', sql.NVarChar, sessionData.status)
+      .input('priority', sql.NVarChar, sessionData.priority)
+      .input('notificationEmail', sql.NVarChar, sessionData.notificationEmail)
+      .input('estimatedCompletionTime', sql.DateTime2, sessionData.estimatedCompletionTime)
+      .input('expiresAt', sql.DateTime2, sessionData.expiresAt)
+      .query(`
+        INSERT INTO batch_sessions (
+          user_id, role_id, session_token, total_files, total_processed, total_failed,
+          status, priority, notification_email, estimated_completion_time, expires_at
+        )
+        OUTPUT INSERTED.id, INSERTED.user_id as userId, INSERTED.role_id as roleId,
+               INSERTED.session_token as sessionToken, INSERTED.total_files as totalFiles,
+               INSERTED.total_processed as totalProcessed, INSERTED.total_failed as totalFailed,
+               INSERTED.status, INSERTED.priority, INSERTED.notification_email as notificationEmail,
+               INSERTED.estimated_completion_time as estimatedCompletionTime,
+               INSERTED.completed_at as completedAt, INSERTED.created_at as createdAt,
+               INSERTED.updated_at as updatedAt, INSERTED.expires_at as expiresAt
+        VALUES (
+          @userId, @roleId, @sessionToken, @totalFiles, 0, 0,
+          @status, @priority, @notificationEmail, @estimatedCompletionTime, @expiresAt
+        )
+      `)
+    
+    return result.recordset[0] || null
+  } catch (error) {
+    console.error('Database error creating batch session:', error)
+    return null
+  }
+}
+
 export async function getBatchSession(sessionId: string): Promise<BatchSession | null> {
   try {
     const pool = await getDbConnection()

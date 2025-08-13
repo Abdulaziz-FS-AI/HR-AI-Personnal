@@ -94,3 +94,6 @@ export class PDFTextExtractor {
       .trim()
   }
 }
+
+// Export singleton instance
+export const pdfTextExtractor = new PDFTextExtractor()
