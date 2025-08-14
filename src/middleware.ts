@@ -10,6 +10,11 @@ export function middleware(request: NextRequest) {
     '/register',
     '/api/auth',
     '/api/health',
+    '/api/create-user',
+    '/api/create-tables',
+    '/api/extend-file-schema',
+    '/api/create-results-schema',
+    '/api/create-evaluation-schema',
     '/'
   ]
   
