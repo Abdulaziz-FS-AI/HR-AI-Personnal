@@ -21,6 +21,7 @@ export function middleware(request: NextRequest) {
     '/api/check-schema',
     '/api/test-tables',
     '/api/test-sql-server',
+    '/api/debug-schema',
     '/'
   ]
   
