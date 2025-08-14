@@ -19,6 +19,7 @@ export function middleware(request: NextRequest) {
     '/api/deploy-basic-schema',
     '/api/deploy-schema',
     '/api/check-schema',
+    '/api/test-tables',
     '/'
   ]
   
