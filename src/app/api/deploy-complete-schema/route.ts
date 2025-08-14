@@ -32,7 +32,7 @@ export async function POST() {
       BEGIN
         CREATE TABLE roles (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          user_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES users(id),
+          user_id UNIQUEIDENTIFIER NOT NULL,
           title NVARCHAR(200) NOT NULL,
           description NVARCHAR(MAX),
           responsibilities NVARCHAR(MAX),
@@ -54,7 +54,7 @@ export async function POST() {
       BEGIN
         CREATE TABLE role_skills (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          role_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES roles(id) ON DELETE CASCADE,
+          role_id UNIQUEIDENTIFIER NOT NULL,
           skill_name NVARCHAR(100) NOT NULL,
           weight INT NOT NULL CHECK (weight BETWEEN 1 AND 10),
           is_required BIT DEFAULT 0,
@@ -67,7 +67,7 @@ export async function POST() {
       BEGIN
         CREATE TABLE role_questions (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          role_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES roles(id) ON DELETE CASCADE,
+          role_id UNIQUEIDENTIFIER NOT NULL,
           question_text NVARCHAR(MAX) NOT NULL,
           weight INT NOT NULL CHECK (weight BETWEEN 1 AND 10),
           expected_answer NVARCHAR(MAX),
@@ -80,8 +80,8 @@ export async function POST() {
       BEGIN
         CREATE TABLE batch_sessions (
           session_id NVARCHAR(100) PRIMARY KEY,
-          user_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES users(id),
-          role_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES roles(id),
+          user_id UNIQUEIDENTIFIER NOT NULL,
+          role_id UNIQUEIDENTIFIER NOT NULL,
           total_files INT DEFAULT 0,
           processed_files INT DEFAULT 0,
           failed_files INT DEFAULT 0,
@@ -96,8 +96,8 @@ export async function POST() {
       BEGIN
         CREATE TABLE evaluation_sessions (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          user_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES users(id),
-          role_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES roles(id),
+          user_id UNIQUEIDENTIFIER NOT NULL,
+          role_id UNIQUEIDENTIFIER NOT NULL,
           name NVARCHAR(200) NOT NULL,
           total_files INT DEFAULT 0,
           processed_files INT DEFAULT 0,
@@ -114,7 +114,7 @@ export async function POST() {
       BEGIN
         CREATE TABLE evaluation_files (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          evaluation_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES evaluation_sessions(id) ON DELETE CASCADE,
+          evaluation_id UNIQUEIDENTIFIER NOT NULL,
           file_name NVARCHAR(255) NOT NULL,
           original_name NVARCHAR(255),
           file_size BIGINT,
@@ -133,8 +133,8 @@ export async function POST() {
       BEGIN
         CREATE TABLE evaluation_results (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          evaluation_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES evaluation_sessions(id) ON DELETE CASCADE,
-          file_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES evaluation_files(id) ON DELETE CASCADE,
+          evaluation_id UNIQUEIDENTIFIER NOT NULL,
+          file_id UNIQUEIDENTIFIER NOT NULL,
           overall_score DECIMAL(5,2) DEFAULT 0,
           skills_analysis NVARCHAR(MAX),
           questions_analysis NVARCHAR(MAX),
@@ -152,7 +152,7 @@ export async function POST() {
       BEGIN
         CREATE TABLE upload_sessions (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          user_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES users(id),
+          user_id UNIQUEIDENTIFIER NOT NULL,
           session_token NVARCHAR(100) UNIQUE NOT NULL,
           total_files INT DEFAULT 0,
           uploaded_files INT DEFAULT 0,
@@ -168,8 +168,8 @@ export async function POST() {
       BEGIN
         CREATE TABLE uploaded_files (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          user_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES users(id),
-          session_id UNIQUEIDENTIFIER FOREIGN KEY REFERENCES upload_sessions(id),
+          user_id UNIQUEIDENTIFIER NOT NULL,
+          session_id UNIQUEIDENTIFIER,
           file_name NVARCHAR(255) NOT NULL,
           original_name NVARCHAR(255) NOT NULL,
           file_size BIGINT NOT NULL,
@@ -192,10 +192,10 @@ export async function POST() {
       BEGIN
         CREATE TABLE analysis_results (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-          file_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES uploaded_files(id),
+          file_id UNIQUEIDENTIFIER NOT NULL,
           session_id NVARCHAR(100),
-          role_id UNIQUEIDENTIFIER FOREIGN KEY REFERENCES roles(id),
-          user_id UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES users(id),
+          role_id UNIQUEIDENTIFIER,
+          user_id UNIQUEIDENTIFIER NOT NULL,
           overall_score DECIMAL(5,2) DEFAULT 0,
           skills_analysis NVARCHAR(MAX),
           questions_analysis NVARCHAR(MAX),
@@ -206,6 +206,55 @@ export async function POST() {
           created_at DATETIME2 DEFAULT GETDATE()
         )
       END
+
+      -- Add foreign key constraints after all tables are created
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_roles_users')
+        ALTER TABLE roles ADD CONSTRAINT FK_roles_users FOREIGN KEY (user_id) REFERENCES users(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_role_skills_roles')
+        ALTER TABLE role_skills ADD CONSTRAINT FK_role_skills_roles FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_role_questions_roles')
+        ALTER TABLE role_questions ADD CONSTRAINT FK_role_questions_roles FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_batch_sessions_users')
+        ALTER TABLE batch_sessions ADD CONSTRAINT FK_batch_sessions_users FOREIGN KEY (user_id) REFERENCES users(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_batch_sessions_roles')
+        ALTER TABLE batch_sessions ADD CONSTRAINT FK_batch_sessions_roles FOREIGN KEY (role_id) REFERENCES roles(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_evaluation_sessions_users')
+        ALTER TABLE evaluation_sessions ADD CONSTRAINT FK_evaluation_sessions_users FOREIGN KEY (user_id) REFERENCES users(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_evaluation_sessions_roles')
+        ALTER TABLE evaluation_sessions ADD CONSTRAINT FK_evaluation_sessions_roles FOREIGN KEY (role_id) REFERENCES roles(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_evaluation_files_evaluation_sessions')
+        ALTER TABLE evaluation_files ADD CONSTRAINT FK_evaluation_files_evaluation_sessions FOREIGN KEY (evaluation_id) REFERENCES evaluation_sessions(id) ON DELETE CASCADE
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_evaluation_results_evaluation_sessions')
+        ALTER TABLE evaluation_results ADD CONSTRAINT FK_evaluation_results_evaluation_sessions FOREIGN KEY (evaluation_id) REFERENCES evaluation_sessions(id) ON DELETE CASCADE
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_evaluation_results_evaluation_files')
+        ALTER TABLE evaluation_results ADD CONSTRAINT FK_evaluation_results_evaluation_files FOREIGN KEY (file_id) REFERENCES evaluation_files(id) ON DELETE CASCADE
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_upload_sessions_users')
+        ALTER TABLE upload_sessions ADD CONSTRAINT FK_upload_sessions_users FOREIGN KEY (user_id) REFERENCES users(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_uploaded_files_users')
+        ALTER TABLE uploaded_files ADD CONSTRAINT FK_uploaded_files_users FOREIGN KEY (user_id) REFERENCES users(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_uploaded_files_upload_sessions')
+        ALTER TABLE uploaded_files ADD CONSTRAINT FK_uploaded_files_upload_sessions FOREIGN KEY (session_id) REFERENCES upload_sessions(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_analysis_results_uploaded_files')
+        ALTER TABLE analysis_results ADD CONSTRAINT FK_analysis_results_uploaded_files FOREIGN KEY (file_id) REFERENCES uploaded_files(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_analysis_results_roles')
+        ALTER TABLE analysis_results ADD CONSTRAINT FK_analysis_results_roles FOREIGN KEY (role_id) REFERENCES roles(id)
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_analysis_results_users')
+        ALTER TABLE analysis_results ADD CONSTRAINT FK_analysis_results_users FOREIGN KEY (user_id) REFERENCES users(id)
 
       -- Indices for performance
       IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_users_email')

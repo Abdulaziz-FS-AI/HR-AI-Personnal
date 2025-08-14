@@ -110,7 +110,7 @@ export default function EvaluationsPage() {
         </div>
         <div className="flex items-center space-x-3">
           <Button asChild variant="outline">
-            <Link href="/dashboard/evaluations/create">
+            <Link href="/evaluations/create">
               <Plus className="w-4 h-4 mr-2" />
               New Evaluation
             </Link>
@@ -232,7 +232,7 @@ export default function EvaluationsPage() {
                   : 'Get started by creating your first evaluation session.'}
               </p>
               <Button asChild>
-                <Link href="/dashboard/evaluations/create">
+                <Link href="/evaluations/create">
                   <Plus className="w-4 h-4 mr-2" />
                   Create First Evaluation
                 </Link>

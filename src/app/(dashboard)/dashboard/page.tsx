@@ -101,7 +101,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/dashboard/evaluations/create">
+            <Link href="/evaluations/create">
               <Button className="w-full">
                 Start New Evaluation
               </Button>
@@ -117,7 +117,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/dashboard/evaluations">
+            <Link href="/evaluations">
               <Button className="w-full" variant="outline">
                 View Evaluations
               </Button>
