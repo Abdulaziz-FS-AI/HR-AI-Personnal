@@ -303,6 +303,8 @@ export function getServiceBusService(): ServiceBusService {
   return serviceBusService
 }
 
+// NOTE: getServiceBusService already exists above (line 299)
+
 export type { 
   FileProcessingMessage, 
   AIAnalysisMessage, 

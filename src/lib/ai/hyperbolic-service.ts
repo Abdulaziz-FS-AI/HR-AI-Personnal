@@ -146,7 +146,7 @@ export class HyperbolicService {
     const prompt = this.buildAnalysisPrompt(request)
     
     const hyperbolicRequest: HyperbolicRequest = {
-      model: 'meta-llama/Llama-3.3-70B-Instruct',
+      model: 'gpt-oss-120b', // CRITICAL: Using GPT-OSS 120B model from Hyperbolic
       messages: [
         {
           role: 'system',

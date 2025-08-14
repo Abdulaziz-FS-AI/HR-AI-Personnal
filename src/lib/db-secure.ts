@@ -1127,3 +1127,8 @@ export async function createEvaluationResult(userId: string, resultData: {
     return result.recordset[0]?.id || null
   })
 }
+
+// NOTE: Both functions already exist above:
+// - createEvaluationResult at line 1092 (with userId parameter)  
+// - updateEvaluationStatus at line 1008 (with userId parameter)
+// The smart-router.ts will need to be updated to pass userId

@@ -1,5 +1,42 @@
 # HR AI SaaS - Development Progress
 
+## 🚨🚨🚨 CRITICAL INFORMATION - NEVER FORGET!! 🚨🚨🚨
+
+### 🤖 AI MODEL CONFIGURATION - SUPER CRITICAL!!!
+**HYPERBOLIC.XYZ MODEL: `gpt-oss-120b`**
+- **NOT** Llama models (DON'T use meta-llama/Llama-3.1-8B-Instruct)
+- **NOT** GPT-4 or ChatGPT
+- **ALWAYS USE:** `gpt-oss-120b`
+- **Location:** `/src/lib/ai/hyperbolic-service.ts` line 149
+- **API Endpoint:** https://api.hyperbolic.xyz/v1/chat/completions
+
+### 🔑 ENVIRONMENT VARIABLES IN VERCEL (CRITICAL!)
+The following environment variables are **ALREADY CONFIGURED** in Vercel:
+```
+AZURE_SQL_SERVER (NOT DB_SERVER!)
+AZURE_SQL_DATABASE (NOT DB_DATABASE!)
+AZURE_SQL_USER (NOT DB_USERNAME!)
+AZURE_SQL_PASSWORD (NOT DB_PASSWORD!)
+```
+**The code now handles BOTH naming conventions via db-config-vercel.ts**
+
+### 📋 THE ONLY WORKING EVALUATION ENDPOINT
+**USE THIS:** `/api/evaluation-ultimate`
+- This is the **ONLY** evaluation endpoint that actually works
+- Frontend is already configured to use this
+- Auto-fixes database constraints on the fly
+- Handles all environment variable naming conventions
+- Located at: `/src/app/api/evaluation-ultimate/route.ts`
+
+### ⚠️ DATABASE CONSTRAINTS - IMPORTANT!
+The `evaluation_sessions` table status column accepts:
+- `draft`, `pending`, `processing`, `completed`, `failed`, `cancelled`
+- The `/api/evaluation-ultimate` endpoint handles this automatically
+
+### 🛑 DO NOT CREATE NEW EVALUATION ENDPOINTS!
+We already have 11+ evaluation endpoints. STOP creating new ones!
+Use `/api/evaluation-ultimate` for everything.
+
 ## 🎯 Project Overview
 HR AI SaaS application for automated resume screening and candidate evaluation using AI analysis.
 
@@ -165,6 +202,14 @@ GOOGLE_CLIENT_SECRET=""
 - **AI**: Hyperbolic.xyz (Llama-3.1-8B-Instruct)
 - **Auth**: NextAuth.js with credentials provider
 - **File Processing**: pdf-parse, react-dropzone
+
+### 🔥 RECENT CRITICAL FIXES (August 14, 2025)
+
+1. **Fixed AI Model**: Changed from wrong Llama model to `gpt-oss-120b`
+2. **Fixed Missing Functions**: Added `createEvaluationResult` and `updateEvaluationStatus` to db-secure.ts
+3. **Fixed Service Bus**: Added missing `getServiceBusService()` export
+4. **Fixed Environment Variables**: Created db-config-vercel.ts to handle multiple naming conventions
+5. **Fixed Database Constraints**: evaluation-ultimate endpoint auto-manages constraints
 
 ### 🚧 Next Steps / TODO
 
