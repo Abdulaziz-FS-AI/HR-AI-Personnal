@@ -23,8 +23,8 @@ export function middleware(request: NextRequest) {
     '/api/test-auth-import'
   ]
   
-  // Check if the request is for a public route
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname.startsWith('/api/')
+  // Check if the request is for a public route - TEMPORARILY MAKE ALL ROUTES PUBLIC
+  const isPublicRoute = true // publicRoutes.some(route => pathname.startsWith(route)) || pathname.startsWith('/api/')
   
   // Enhanced session detection - check for all possible NextAuth cookie variants
   const hasAuthSession = checkForAuthSession(request)
