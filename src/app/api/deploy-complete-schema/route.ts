@@ -102,7 +102,7 @@ export async function POST() {
           total_files INT DEFAULT 0,
           processed_files INT DEFAULT 0,
           failed_files INT DEFAULT 0,
-          status NVARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+          status NVARCHAR(50) DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'processing', 'completed', 'completed_with_errors', 'failed')),
           created_at DATETIME2 DEFAULT GETDATE(),
           updated_at DATETIME2 DEFAULT GETDATE(),
           completed_at DATETIME2

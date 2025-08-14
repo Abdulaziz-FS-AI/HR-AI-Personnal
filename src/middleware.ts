@@ -28,6 +28,9 @@ export function middleware(request: NextRequest) {
     '/api/verify-success',
     '/api/ensure-test-user',
     '/api/test-azure-services',
+    '/api/check-users-roles',
+    '/api/check-constraints',
+    '/api/check-status-constraint',
     '/'
   ]
   
