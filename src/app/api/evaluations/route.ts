@@ -94,6 +94,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let pool: sql.ConnectionPool | null = null
+  
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -113,8 +115,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create evaluation session in the correct table
-    const pool = await getDbConnection()
+    pool = await getDbConnection()
+
+    // Check if evaluation_sessions table exists
+    const tableCheck = await pool.request().query(`
+      SELECT name FROM sysobjects 
+      WHERE name='evaluation_sessions' AND xtype='U'
+    `)
+    
+    if (tableCheck.recordset.length === 0) {
+      return NextResponse.json(
+        { 
+          error: 'Evaluation system not initialized',
+          message: 'Please deploy the evaluation system schema first',
+          action: 'Run POST /api/deploy-evaluation-system'
+        },
+        { status: 503 }
+      )
+    }
     
     // Generate a proper UNIQUEIDENTIFIER
     const evaluationId = crypto.randomUUID()
@@ -155,12 +173,21 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: evaluation
+      data: evaluation,
+      message: 'Evaluation session created successfully'
     })
   } catch (error) {
     console.error('Create evaluation error:', error)
+    
+    if (pool) {
+      await pool.close()
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create evaluation' },
+      { 
+        error: 'Failed to create evaluation',
+        message: error instanceof Error ? error.message : 'Unknown database error'
+      },
       { status: 500 }
     )
   }

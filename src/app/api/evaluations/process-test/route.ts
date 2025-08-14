@@ -28,6 +28,24 @@ export async function POST(request: NextRequest) {
 
     pool = await getDbConnection()
     
+    // Check if required tables exist
+    const tableCheck = await pool.request().query(`
+      SELECT name FROM sysobjects 
+      WHERE name IN ('evaluation_sessions', 'evaluation_files', 'evaluation_results') AND xtype='U'
+    `)
+    
+    if (tableCheck.recordset.length < 3) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'Evaluation system not initialized',
+          missingTables: 3 - tableCheck.recordset.length,
+          action: 'Run POST /api/deploy-evaluation-system first'
+        },
+        { status: 503 }
+      )
+    }
+    
     // Get evaluation details (without user check for testing)
     const evalCheck = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
