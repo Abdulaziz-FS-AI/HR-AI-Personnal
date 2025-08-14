@@ -19,7 +19,8 @@ export function middleware(request: NextRequest) {
     '/api/evaluations',
     '/api/test-evaluations',
     '/api/auth-test',
-    '/api/simple-auth-test'
+    '/api/simple-auth-test',
+    '/api/test-auth-import'
   ]
   
   // Check if the request is for a public route
