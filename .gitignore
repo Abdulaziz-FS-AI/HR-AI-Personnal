@@ -59,3 +59,31 @@ coverage/
 
 # MCP configuration with sensitive data
 .mcp.json
+
+# Additional IDE and build artifacts
+*.tsbuildinfo
+.swc/
+.vercel/
+.turbo/
+
+# Package manager files
+package-lock.json.bak
+yarn-error.log
+.yarn/
+.pnp.*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Additional cache and temp directories
+.eslintcache
+.stylelintcache
+*.tgz
+*.tar.gz
