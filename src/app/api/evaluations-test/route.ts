@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { bulletproofDb, executeQuerySafely } from '@/lib/db-bulletproof'
 import sql from 'mssql'
+
+// Dynamic import to prevent build-time initialization
+let bulletproofDb: any = null
+let executeQuerySafely: any = null
+
+async function initializeBulletproof() {
+  if (!bulletproofDb) {
+    const dbModule = await import('@/lib/db-bulletproof')
+    bulletproofDb = dbModule.bulletproofDb
+    executeQuerySafely = dbModule.executeQuerySafely
+  }
+}
 
 // BULLETPROOF Test endpoints with comprehensive error handling
 
@@ -9,6 +20,9 @@ export async function GET(request: NextRequest) {
   
   try {
     console.log('🔍 BULLETPROOF TEST: Starting evaluations test...')
+    
+    // Initialize bulletproof connection on runtime (not build time)
+    await initializeBulletproof()
     
     // Use test user ID
     const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'
@@ -158,6 +172,9 @@ export async function POST(request: NextRequest) {
   
   try {
     console.log('🚀 BULLETPROOF TEST: Creating evaluation...')
+    
+    // Initialize bulletproof connection on runtime (not build time)
+    await initializeBulletproof()
     
     // Use test user ID
     const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'

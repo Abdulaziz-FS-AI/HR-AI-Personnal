@@ -34,33 +34,40 @@ class BulletproofDatabase {
   private retryDelay: number = 1000
 
   private constructor() {
-    this.config = {
-      server: process.env.DB_SERVER || '',
-      database: process.env.DB_DATABASE || '',
-      user: process.env.DB_USERNAME || '',
-      password: process.env.DB_PASSWORD || '',
-      options: {
-        encrypt: true,
-        trustServerCertificate: true,
-        requestTimeout: 30000, // 30 seconds
-        connectionTimeout: 30000, // 30 seconds
-        enableArithAbort: true
-      },
-      pool: {
-        max: 10, // Maximum pool size
-        min: 0,  // Minimum pool size
-        idleTimeoutMillis: 30000, // 30 seconds
-        acquireTimeoutMillis: 60000, // 60 seconds
-        createTimeoutMillis: 30000, // 30 seconds  
-        destroyTimeoutMillis: 5000, // 5 seconds
-        reapIntervalMillis: 1000, // 1 second
-        createRetryIntervalMillis: 200 // 200ms
-      }
-    }
+    // Initialize config as empty - will be set when first needed
+    this.config = {} as ConnectionConfig
+  }
 
-    // Validate required config
-    if (!this.config.server || !this.config.database || !this.config.user || !this.config.password) {
-      throw new Error('Missing required database configuration. Check environment variables.')
+  private initializeConfig(): void {
+    if (!this.config.server) {
+      this.config = {
+        server: process.env.DB_SERVER || '',
+        database: process.env.DB_DATABASE || '',
+        user: process.env.DB_USERNAME || '',
+        password: process.env.DB_PASSWORD || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          requestTimeout: 30000, // 30 seconds
+          connectionTimeout: 30000, // 30 seconds
+          enableArithAbort: true
+        },
+        pool: {
+          max: 10, // Maximum pool size
+          min: 0,  // Minimum pool size
+          idleTimeoutMillis: 30000, // 30 seconds
+          acquireTimeoutMillis: 60000, // 60 seconds
+          createTimeoutMillis: 30000, // 30 seconds  
+          destroyTimeoutMillis: 5000, // 5 seconds
+          reapIntervalMillis: 1000, // 1 second
+          createRetryIntervalMillis: 200 // 200ms
+        }
+      }
+
+      // Validate required config only when actually used (not during build)
+      if (!this.config.server || !this.config.database || !this.config.user || !this.config.password) {
+        throw new Error('Missing required database configuration. Check environment variables.')
+      }
     }
   }
 
@@ -72,6 +79,9 @@ class BulletproofDatabase {
   }
 
   async getConnection(): Promise<sql.ConnectionPool> {
+    // Initialize config on first use (not during build)
+    this.initializeConfig()
+
     // If we have a healthy connection, return it
     if (this.pool && this.pool.connected && !this.pool.connecting) {
       return this.pool
@@ -263,6 +273,9 @@ class BulletproofDatabase {
     error?: string
   }> {
     try {
+      // Initialize config before health check
+      this.initializeConfig()
+      
       const pool = await this.getConnection()
       
       // Test connection with simple query
@@ -301,12 +314,28 @@ class BulletproofDatabase {
   }
 }
 
-// Export singleton instance
-export const bulletproofDb = BulletproofDatabase.getInstance()
+// Lazy singleton instance - only initialized when needed
+let bulletproofDbInstance: BulletproofDatabase | null = null
+
+function getBulletproofDbInstance(): BulletproofDatabase {
+  if (!bulletproofDbInstance) {
+    bulletproofDbInstance = BulletproofDatabase.getInstance()
+  }
+  return bulletproofDbInstance
+}
+
+// Export getter instead of direct instance
+export const bulletproofDb = {
+  getConnection: () => getBulletproofDbInstance().getConnection(),
+  executeQuery: <T = any>(queryText: string, parameters?: Record<string, any>) => 
+    getBulletproofDbInstance().executeQuery<T>(queryText, parameters),
+  healthCheck: () => getBulletproofDbInstance().healthCheck(),
+  gracefulShutdown: () => getBulletproofDbInstance().gracefulShutdown()
+}
 
 // Convenience function for backward compatibility
 export async function getBulletproofConnection(): Promise<sql.ConnectionPool> {
-  return bulletproofDb.getConnection()
+  return getBulletproofDbInstance().getConnection()
 }
 
 // Execute query with bulletproof error handling
@@ -314,5 +343,5 @@ export async function executeQuerySafely<T = any>(
   queryText: string,
   parameters?: Record<string, any>
 ): Promise<sql.IResult<T>> {
-  return bulletproofDb.executeQuery<T>(queryText, parameters)
+  return getBulletproofDbInstance().executeQuery<T>(queryText, parameters)
 }
