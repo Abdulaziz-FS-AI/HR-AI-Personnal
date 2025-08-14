@@ -16,6 +16,7 @@ export function middleware(request: NextRequest) {
     '/api/create-results-schema',
     '/api/create-evaluation-schema',
     '/api/deploy-complete-schema',
+    '/api/deploy-basic-schema',
     '/api/deploy-schema',
     '/api/check-schema',
     '/'
