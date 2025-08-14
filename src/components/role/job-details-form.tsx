@@ -1,0 +1,149 @@
+"use client"
+
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { 
+  jobDetailsStepSchema, 
+  type JobDetailsStep 
+} from "@/lib/validations/role"
+
+interface JobDetailsFormProps {
+  initialData?: Partial<JobDetailsStep>
+  onSubmit: (data: JobDetailsStep) => void
+  onNext: () => void
+  isLoading?: boolean
+}
+
+export function JobDetailsForm({ 
+  initialData, 
+  onSubmit, 
+  onNext, 
+  isLoading = false 
+}: JobDetailsFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const form = useForm<JobDetailsStep>({
+    resolver: zodResolver(jobDetailsStepSchema),
+    defaultValues: {
+      title: initialData?.title || "",
+      description: initialData?.description || "",
+      responsibilities: initialData?.responsibilities || "",
+    }
+  })
+
+  const { 
+    register, 
+    handleSubmit, 
+    formState: { errors, isValid }
+  } = form
+
+  const handleFormSubmit = async (data: JobDetailsStep) => {
+    setIsSubmitting(true)
+    try {
+      await onSubmit(data)
+      onNext()
+    } catch (error) {
+      console.error('Form submission error:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center">
+          Job Details
+        </CardTitle>
+        <p className="text-center text-muted-foreground">
+          Step 1 of 5: Define the basic job information
+        </p>
+      </CardHeader>
+      
+      <CardContent>
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+          {/* Job Title */}
+          <div className="space-y-2">
+            <Label htmlFor="title" className="text-sm font-medium">
+              Job Title *
+            </Label>
+            <Input
+              id="title"
+              placeholder="e.g., Software Developer"
+              {...register("title")}
+              className={errors.title ? "border-red-500" : ""}
+            />
+            {errors.title && (
+              <p className="text-sm text-red-500">{errors.title.message}</p>
+            )}
+          </div>
+
+
+          {/* Job Description */}
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-sm font-medium">
+              Job Description
+            </Label>
+            <Textarea
+              id="description"
+              placeholder="Describe the role, what the candidate will be doing, team structure, etc."
+              rows={4}
+              {...register("description")}
+              className={errors.description ? "border-red-500" : ""}
+            />
+            {errors.description && (
+              <p className="text-sm text-red-500">{errors.description.message}</p>
+            )}
+          </div>
+
+          {/* Responsibilities */}
+          <div className="space-y-2">
+            <Label htmlFor="responsibilities" className="text-sm font-medium">
+              Key Responsibilities
+            </Label>
+            <Textarea
+              id="responsibilities"
+              placeholder="• Key responsibility 1&#10;• Key responsibility 2&#10;• Key responsibility 3"
+              rows={4}
+              {...register("responsibilities")}
+              className={errors.responsibilities ? "border-red-500" : ""}
+            />
+            {errors.responsibilities && (
+              <p className="text-sm text-red-500">{errors.responsibilities.message}</p>
+            )}
+          </div>
+
+
+          {/* Action Buttons */}
+          <div className="flex justify-between pt-6">
+            <div /> {/* Empty div for spacing */}
+            
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSubmitting || isLoading}
+              >
+                Save Draft
+              </Button>
+              
+              <Button
+                type="submit"
+                disabled={!isValid || isSubmitting || isLoading}
+                className="min-w-[120px]"
+              >
+                {isSubmitting ? "Saving..." : "Next Step"}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
