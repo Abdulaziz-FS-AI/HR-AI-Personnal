@@ -69,9 +69,7 @@ class BlobStorageService {
       const containerClient = this.blobServiceClient.getContainerClient(this.config.containerName)
       
       // Ensure container exists
-      await containerClient.createIfNotExists({
-        access: 'private'
-      })
+      await containerClient.createIfNotExists()
 
       const blobClient = containerClient.getBlobClient(blobName)
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now

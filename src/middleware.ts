@@ -27,6 +27,7 @@ export function middleware(request: NextRequest) {
     '/api/evaluations/process-test',
     '/api/verify-success',
     '/api/ensure-test-user',
+    '/api/test-azure-services',
     '/'
   ]
   
