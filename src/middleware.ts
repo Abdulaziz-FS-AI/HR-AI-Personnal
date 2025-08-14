@@ -22,6 +22,7 @@ export function middleware(request: NextRequest) {
     '/api/test-tables',
     '/api/test-sql-server',
     '/api/debug-schema',
+    '/api/debug-permissions',
     '/'
   ]
   
