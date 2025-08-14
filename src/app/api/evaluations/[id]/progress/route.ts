@@ -145,8 +145,6 @@ export async function GET(
       response.data.progress.completionMessage = `Successfully processed ${processedFiles} files with an average score of ${Math.round(evaluation.average_score || 0)}%`
     } else if (evaluation.status === 'failed') {
       response.data.progress.completionMessage = `Processing failed. ${processedFiles} files completed before failure.`
-    } else if (evaluation.status === 'completed_with_errors') {
-      response.data.progress.completionMessage = `Processing completed with errors. ${processedFiles} succeeded, ${failedFiles} failed.`
     }
 
     return NextResponse.json(response)

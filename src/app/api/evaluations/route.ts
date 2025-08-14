@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         VALUES (
           @evaluationId, @userId, @roleId, @name,
           0, 0, 0, 
-          'draft', GETDATE(), GETDATE()
+          'pending', GETDATE(), GETDATE()
         )
       `)
     

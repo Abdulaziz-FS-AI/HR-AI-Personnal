@@ -296,7 +296,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update evaluation status
-    const finalStatus = failedCount === 0 ? 'completed' : 'completed_with_errors'
+    const finalStatus = failedCount === 0 ? 'completed' : (processedCount > 0 ? 'completed' : 'failed')
     await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('status', sql.NVarChar, finalStatus)
