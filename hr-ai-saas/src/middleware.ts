@@ -12,7 +12,8 @@ export function middleware(request: NextRequest) {
     '/api/health', 
     '/api/deploy-schema',
     '/api/check-schema',
-    '/api/test-db'
+    '/api/test-db',
+    '/api/debug-auth'
   ]
   
   // Check if the request is for a public route
