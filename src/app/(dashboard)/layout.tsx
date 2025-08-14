@@ -8,19 +8,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  // TEMPORARILY DISABLED AUTH CHECK FOR TESTING
-  // const session = await auth()
-  // if (!session) {
-  //   redirect("/login")
-  // }
-  
-  // Mock session for testing
-  const session = {
-    user: {
-      name: "Test User",
-      email: "test@example.com",
-      company: "Test Company"
-    }
+  const session = await auth()
+  if (!session) {
+    redirect("/login")
   }
 
   return (
@@ -41,7 +31,7 @@ export default async function DashboardLayout({
                   Dashboard
                 </Link>
                 <Link
-                  href="/roles"
+                  href="/dashboard/roles"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Job Roles
@@ -53,13 +43,13 @@ export default async function DashboardLayout({
                   Evaluations
                 </Link>
                 <Link
-                  href="/analytics"
+                  href="/dashboard/analytics"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Analytics
                 </Link>
                 <Link
-                  href="/settings"
+                  href="/dashboard/settings"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Settings
