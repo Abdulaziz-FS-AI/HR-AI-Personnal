@@ -24,7 +24,7 @@ export function middleware(request: NextRequest) {
   ]
   
   // Check if the request is for a public route
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname.startsWith('/api/')
   
   // Enhanced session detection - check for all possible NextAuth cookie variants
   const hasAuthSession = checkForAuthSession(request)
