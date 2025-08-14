@@ -23,6 +23,7 @@ export function middleware(request: NextRequest) {
     '/api/test-sql-server',
     '/api/debug-schema',
     '/api/debug-permissions',
+    '/api/simple-evaluations',
     '/'
   ]
   

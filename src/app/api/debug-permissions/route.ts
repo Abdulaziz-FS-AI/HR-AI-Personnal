@@ -11,7 +11,7 @@ export async function GET() {
         DB_NAME() as current_database,
         USER_NAME() as current_user_name,
         SCHEMA_NAME() as current_schema,
-        SYSTEM_USER as system_user,
+        SYSTEM_USER as system_user_name,
         @@SERVERNAME as server_name
     `)
     

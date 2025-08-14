@@ -22,6 +22,24 @@ export async function GET(request: NextRequest) {
 
     // Get batch sessions for this user
     const pool = await getDbConnection()
+    
+    // Ensure batch_sessions table exists
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[batch_sessions]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE batch_sessions (
+          session_id NVARCHAR(100) PRIMARY KEY,
+          user_id UNIQUEIDENTIFIER NOT NULL,
+          role_id UNIQUEIDENTIFIER NOT NULL,
+          total_files INT DEFAULT 0,
+          processed_files INT DEFAULT 0,
+          failed_files INT DEFAULT 0,
+          started_at DATETIME2 DEFAULT GETDATE(),
+          completed_at DATETIME2,
+          status NVARCHAR(50) DEFAULT 'pending'
+        )
+      END
+    `)
     const result = await pool.request()
       .input('userId', sql.UniqueIdentifier, session.user.id)
       .input('limit', sql.Int, limit)
@@ -51,6 +69,8 @@ export async function GET(request: NextRequest) {
       data: result.recordset,
       total: totalResult.recordset[0].total
     }
+    
+    await pool.close()
 
     return NextResponse.json({
       success: true,
@@ -91,8 +111,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Ensure batch_sessions table exists for POST requests too
+    const pool = await getDbConnection()
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[batch_sessions]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE batch_sessions (
+          session_id NVARCHAR(100) PRIMARY KEY,
+          user_id UNIQUEIDENTIFIER NOT NULL,
+          role_id UNIQUEIDENTIFIER NOT NULL,
+          total_files INT DEFAULT 0,
+          processed_files INT DEFAULT 0,
+          failed_files INT DEFAULT 0,
+          started_at DATETIME2 DEFAULT GETDATE(),
+          completed_at DATETIME2,
+          status NVARCHAR(50) DEFAULT 'pending'
+        )
+      END
+    `)
+    
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-    const batchSession: BatchProcessingSession = {
+    
+    // Insert directly instead of using createBatchSession
+    await pool.request()
+      .input('sessionId', sessionId)
+      .input('userId', session.user.id)
+      .input('roleId', roleId)
+      .query(`
+        INSERT INTO batch_sessions (session_id, user_id, role_id, total_files, processed_files, failed_files, started_at, status)
+        VALUES (@sessionId, @userId, @roleId, 0, 0, 0, GETDATE(), 'pending')
+      `)
+    
+    await pool.close()
+    
+    const evaluation = { 
+      id: sessionId, 
+      name, 
       sessionId,
       userId: session.user.id,
       roleId,
@@ -102,8 +156,6 @@ export async function POST(request: NextRequest) {
       startedAt: new Date(),
       status: 'pending'
     }
-    
-    await createBatchSession(batchSession)
     const evaluation = { id: sessionId, name, ...batchSession }
 
     return NextResponse.json({
