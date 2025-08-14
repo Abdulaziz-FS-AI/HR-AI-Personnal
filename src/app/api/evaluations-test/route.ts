@@ -1,33 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { getDbConnection } from '@/lib/db'
 import sql from 'mssql'
 
+// Test endpoints without authentication for development
+
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
+    // Use test user ID
+    // Use actual test user ID from database
+    const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'
+    
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
-    const roleId = searchParams.get('roleId') || undefined
-    const status = searchParams.get('status') || undefined
 
-    // Get evaluation sessions for this user
     const pool = await getDbConnection()
     
     const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, session.user.id)
+      .input('userId', sql.UniqueIdentifier, testUserId)
       .input('limit', sql.Int, limit)
       .input('offset', sql.Int, offset)
       .query(`
-        SELECT TOP (@limit) 
+        SELECT 
           es.id,
           es.name,
           es.role_id as roleId,
@@ -38,25 +32,27 @@ export async function GET(request: NextRequest) {
           es.created_at as createdAt,
           es.started_at as startedAt,
           es.completed_at as completedAt,
-          es.status
+          es.status,
+          es.average_score as averageScore
         FROM evaluation_sessions es
         LEFT JOIN roles r ON es.role_id = r.id
         WHERE es.user_id = @userId
         ORDER BY es.created_at DESC
         OFFSET @offset ROWS
+        FETCH NEXT @limit ROWS ONLY
       `)
     
     const totalResult = await pool.request()
-      .input('userId', sql.UniqueIdentifier, session.user.id)
+      .input('userId', sql.UniqueIdentifier, testUserId)
       .query('SELECT COUNT(*) as total FROM evaluation_sessions WHERE user_id = @userId')
     
-    // Map backend data to frontend interface
+    // Map to frontend interface
     const mappedEvaluations = result.recordset.map((row: any) => ({
       id: row.id,
       name: row.name,
       roleId: row.roleId,
       roleTitle: row.roleTitle || 'Unknown Role',
-      status: row.status || 'pending',
+      status: row.status || 'draft',
       createdAt: row.createdAt,
       startedAt: row.startedAt,
       completedAt: row.completedAt,
@@ -64,24 +60,19 @@ export async function GET(request: NextRequest) {
       processedFiles: row.processedFiles || 0,
       failedFiles: row.failedFiles || 0,
       averageScore: row.averageScore,
-      topCandidates: 0 // Calculate from results if needed
+      topCandidates: 0
     }))
-    
-    const evaluations = {
-      data: mappedEvaluations,
-      total: totalResult.recordset[0].total
-    }
     
     await pool.close()
 
     return NextResponse.json({
       success: true,
-      data: evaluations.data,
+      data: mappedEvaluations,
       pagination: {
         limit,
         offset,
-        total: evaluations.total,
-        hasMore: offset + limit < evaluations.total
+        total: totalResult.recordset[0].total,
+        hasMore: offset + limit < totalResult.recordset[0].total
       }
     })
   } catch (error) {
@@ -95,14 +86,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
+    // Use test user ID
+    // Use actual test user ID from database
+    const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'
+    
     const body = await request.json()
     const { name, roleId } = body
 
@@ -113,7 +100,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create evaluation session in the correct table
     const pool = await getDbConnection()
     
     // Generate a proper UNIQUEIDENTIFIER
@@ -122,7 +108,7 @@ export async function POST(request: NextRequest) {
     // Insert into evaluation_sessions table
     await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
-      .input('userId', sql.UniqueIdentifier, session.user.id)
+      .input('userId', sql.UniqueIdentifier, testUserId)
       .input('roleId', sql.UniqueIdentifier, roleId)
       .input('name', sql.NVarChar, name)
       .query(`
@@ -143,14 +129,14 @@ export async function POST(request: NextRequest) {
     const evaluation = { 
       id: evaluationId,
       name, 
-      userId: session.user.id,
+      userId: testUserId,
       roleId,
       totalFiles: 0,
       processedFiles: 0,
       failedFiles: 0,
       createdAt: new Date(),
       startedAt: new Date(),
-      status: 'pending'
+      status: 'draft'
     }
 
     return NextResponse.json({

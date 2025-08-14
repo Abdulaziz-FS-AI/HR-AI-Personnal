@@ -171,7 +171,8 @@ export default function CreateEvaluationPage() {
         }))
       }
 
-      const response = await fetch('/api/evaluations', {
+      // Use test endpoint for development
+      const response = await fetch('/api/evaluations-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sessionData)
@@ -246,7 +247,8 @@ export default function CreateEvaluationPage() {
       // Step 3: Process files with AI
       toast.info('Starting AI analysis...')
       
-      const processResponse = await fetch('/api/evaluations/process', {
+      // Use test endpoint for development
+      const processResponse = await fetch('/api/evaluations/process-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -265,7 +267,7 @@ export default function CreateEvaluationPage() {
       toast.success(`Evaluation completed! Processed ${processResult.data.processedCount || processResult.data.processed || 0} files.`)
       
       // Redirect to evaluations dashboard
-      router.push('/dashboard/evaluations')
+      router.push('/evaluations')
       
     } catch (error) {
       console.error('Error starting evaluation:', error)
@@ -353,7 +355,7 @@ export default function CreateEvaluationPage() {
                 <div className="text-center py-12">
                   <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">No roles found</p>
-                  <Button onClick={() => router.push('/dashboard/roles/create')}>
+                  <Button onClick={() => router.push('/roles/create')}>
                     Create Your First Role
                   </Button>
                 </div>

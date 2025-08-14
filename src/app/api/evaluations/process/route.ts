@@ -223,42 +223,58 @@ export async function POST(request: NextRequest) {
             }
           )
 
-          // First save file record
-          const fileId = sql.UniqueIdentifier.NEWID()
+          // Save file record to existing evaluation_files table
+          const fileId = crypto.randomUUID()
+          
+          // Parse candidate info from extracted text if possible
+          const candidateInfo = {
+            name: file.filename?.replace('.pdf', '') || 'Unknown',
+            email: textResult.contact?.email || null,
+            phone: textResult.contact?.phone || null
+          }
+          
           await pool!.request()
             .input('fileId', sql.UniqueIdentifier, fileId)
             .input('evaluationId', sql.UniqueIdentifier, evaluationId)
-            .input('fileName', sql.NVarChar, file.filename)
+            .input('fileName', sql.NVarChar, file.filename || file.name)
             .input('fileSize', sql.BigInt, file.size || 0)
             .input('blobName', sql.NVarChar, uploadResult.blobUrl)
             .input('extractedText', sql.NText, textResult.fullText)
+            .input('candidateInfo', sql.NVarChar(sql.MAX), JSON.stringify(candidateInfo))
             .input('overallScore', sql.Float, analysisResult.overallScore)
             .query(`
               INSERT INTO evaluation_files (
                 id, evaluation_id, file_name, file_size, blob_name, 
-                status, extracted_text, overall_score, created_at, processed_at
+                status, extracted_text, candidate_info, overall_score, 
+                created_at, processed_at
               ) VALUES (
                 @fileId, @evaluationId, @fileName, @fileSize, @blobName,
-                'completed', @extractedText, @overallScore, GETDATE(), GETDATE()
+                'completed', @extractedText, @candidateInfo, @overallScore, 
+                GETDATE(), GETDATE()
               )
             `)
 
-          // Then save evaluation result
+          // Save evaluation result to existing table structure
           await pool!.request()
             .input('evaluationId', sql.UniqueIdentifier, evaluationId)
             .input('fileId', sql.UniqueIdentifier, fileId)
             .input('skillsAnalysis', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.skillMatches))
             .input('questionsAnalysis', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.questionAnswers))
             .input('strengths', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.strengths))
+            .input('weaknesses', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.weaknesses || []))
             .input('redFlags', sql.NVarChar(sql.MAX), JSON.stringify(analysisResult.redFlags))
             .input('recommendation', sql.NText, analysisResult.recommendations)
             .query(`
               INSERT INTO evaluation_results (
-                id, evaluation_id, file_id, skills_analysis, questions_analysis,
-                strengths, red_flags, recommendation, created_at
+                id, evaluation_id, file_id, 
+                skills_analysis, questions_analysis,
+                strengths, weaknesses, red_flags, 
+                recommendation, created_at
               ) VALUES (
-                NEWID(), @evaluationId, @fileId, @skillsAnalysis, @questionsAnalysis,
-                @strengths, @redFlags, @recommendation, GETDATE()
+                NEWID(), @evaluationId, @fileId,
+                @skillsAnalysis, @questionsAnalysis,
+                @strengths, @weaknesses, @redFlags,
+                @recommendation, GETDATE()
               )
             `)
 
@@ -280,7 +296,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update evaluation status
-    const finalStatus = failedCount === 0 ? 'completed' : 'completed'
+    const finalStatus = failedCount === 0 ? 'completed' : 'completed_with_errors'
     await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .input('status', sql.NVarChar, finalStatus)
@@ -319,7 +335,7 @@ export async function POST(request: NextRequest) {
           .input('status', sql.NVarChar, 'failed')
           .query(`
             UPDATE evaluation_sessions 
-            SET status = @status, 
+            SET status = @status,
                 updated_at = GETDATE()
             WHERE id = @evaluationId
           `)

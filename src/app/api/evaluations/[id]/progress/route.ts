@@ -22,21 +22,21 @@ export async function GET(
     const evaluationId = params.id
     pool = await getDbConnection()
 
-    // Get evaluation session with progress details
+    // Get evaluation session with progress details from evaluation_sessions
     const evaluationResult = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
-      .input('userId', sql.NVarChar, session.user.id)
+      .input('userId', sql.UniqueIdentifier, session.user.id)
       .query(`
         SELECT 
           es.id,
           es.status,
           es.total_files,
-          es.files_processed,
-          es.files_failed,
+          es.processed_files as files_processed,
+          es.failed_files as files_failed,
           es.created_at,
           es.updated_at,
           r.title as role_title,
-          DATEDIFF(SECOND, es.created_at, GETDATE()) as processing_seconds,
+          DATEDIFF(SECOND, es.started_at, GETDATE()) as processing_seconds,
           (
             SELECT COUNT(*) 
             FROM evaluation_files ef 
@@ -47,11 +47,7 @@ export async function GET(
             FROM evaluation_files ef 
             WHERE ef.evaluation_id = es.id AND ef.status = 'pending'
           ) as files_pending,
-          (
-            SELECT AVG(score) 
-            FROM evaluation_results er 
-            WHERE er.evaluation_id = es.id
-          ) as average_score
+          es.average_score
         FROM evaluation_sessions es
         JOIN roles r ON es.role_id = r.id
         WHERE es.id = @evaluationId AND es.user_id = @userId
@@ -66,20 +62,19 @@ export async function GET(
 
     const evaluation = evaluationResult.recordset[0]
 
-    // Get file-level progress
+    // Get file-level progress with corrected table structure
     const filesResult = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .query(`
         SELECT 
           ef.id,
-          ef.filename,
+          ef.file_name as filename,
           ef.status,
           ef.created_at,
-          ef.updated_at,
-          er.overall_score as score,
-          er.processing_time_ms
+          ef.processed_at as updated_at,
+          ef.overall_score as score,
+          DATEDIFF(MILLISECOND, ef.created_at, ef.processed_at) as processing_time_ms
         FROM evaluation_files ef
-        LEFT JOIN evaluation_results er ON ef.id = er.file_id
         WHERE ef.evaluation_id = @evaluationId
         ORDER BY ef.created_at ASC
       `)

@@ -85,8 +85,15 @@ export default function EvaluationDetailsPage() {
       if (!sessionResponse.ok) throw new Error('Failed to load evaluation')
       
       const sessionData = await sessionResponse.json()
-      setSession(sessionData.data.session)
-      setResults(sessionData.data.results || [])
+      // Map backend response to frontend interface
+      if (sessionData.data?.session) {
+        const mappedSession = {
+          ...sessionData.data.session,
+          topCandidates: sessionData.data.results?.filter((r: any) => r.overallScore >= 70).length || 0
+        }
+        setSession(mappedSession)
+      }
+      setResults(sessionData.data?.results || [])
     } catch (error) {
       console.error('Error loading evaluation:', error)
       toast.error('Failed to load evaluation details')

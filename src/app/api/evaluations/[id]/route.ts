@@ -22,25 +22,28 @@ export async function GET(
 
     pool = await getDbConnection()
     
-    // Get evaluation session
+    // Get evaluation session from evaluation_sessions
     const sessionResult = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
-      .input('userId', sql.NVarChar, session.user.id)
+      .input('userId', sql.UniqueIdentifier, session.user.id)
       .query(`
         SELECT 
           es.id,
           es.name,
           es.role_id as roleId,
-          es.role_title as roleTitle,
+          r.title as roleTitle,
           es.status,
           es.total_files as totalFiles,
           es.processed_files as processedFiles,
           es.failed_files as failedFiles,
-          es.average_score as averageScore,
-          es.top_candidates as topCandidates,
           es.created_at as createdAt,
-          es.completed_at as completedAt
+          es.started_at as startedAt,
+          es.completed_at as completedAt,
+          es.average_score as averageScore,
+          es.highest_score as highestScore,
+          es.lowest_score as lowestScore
         FROM evaluation_sessions es
+        JOIN roles r ON es.role_id = r.id
         WHERE es.id = @evaluationId AND es.user_id = @userId
       `)
     
@@ -51,7 +54,7 @@ export async function GET(
       )
     }
 
-    // Get evaluation results
+    // Get evaluation results with corrected table structure
     const resultsResult = await pool.request()
       .input('evaluationId', sql.UniqueIdentifier, evaluationId)
       .query(`
@@ -92,7 +95,7 @@ export async function GET(
         id: row.id,
         fileId: row.fileId,
         fileName: row.fileName,
-        candidateName: candidateInfo?.name || 'Unknown Candidate',
+        candidateName: candidateInfo?.name || row.fileName?.replace('.pdf', '') || 'Unknown Candidate',
         overallScore: row.overallScore || 0,
         skillMatches: safeJsonParse(row.skillsAnalysis, []),
         questionAnswers: safeJsonParse(row.questionsAnalysis, []),

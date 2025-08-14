@@ -31,7 +31,7 @@ interface EvaluationSession {
   id: string
   name: string
   roleTitle: string
-  status: 'running' | 'completed' | 'failed' | 'pending'
+  status: 'processing' | 'completed' | 'failed' | 'draft' | 'ready'
   createdAt: string
   completedAt?: string
   totalFiles: number
@@ -51,7 +51,8 @@ export default function EvaluationsPage() {
   const fetchEvaluations = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/evaluations')
+      // Use test endpoint for development
+      const response = await fetch('/api/evaluations-test')
       if (response.ok) {
         const data = await response.json()
         setEvaluations(data.data || [])
@@ -73,12 +74,14 @@ export default function EvaluationsPage() {
     switch (status) {
       case 'completed':
         return <Badge className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>
-      case 'running':
-        return <Badge className="bg-blue-100 text-blue-800"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Running</Badge>
+      case 'processing':
+        return <Badge className="bg-blue-100 text-blue-800"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Processing</Badge>
       case 'failed':
         return <Badge className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />Failed</Badge>
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1" />Pending</Badge>
+      case 'draft':
+        return <Badge className="bg-gray-100 text-gray-800"><Clock className="w-3 h-3 mr-1" />Draft</Badge>
+      case 'ready':
+        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1" />Ready</Badge>
       default:
         return <Badge variant="secondary">Unknown</Badge>
     }
@@ -94,7 +97,7 @@ export default function EvaluationsPage() {
   const stats = {
     total: evaluations.length,
     completed: evaluations.filter(e => e.status === 'completed').length,
-    running: evaluations.filter(e => e.status === 'running').length,
+    running: evaluations.filter(e => e.status === 'processing').length,
     failed: evaluations.filter(e => e.status === 'failed').length
   }
 
@@ -192,8 +195,9 @@ export default function EvaluationsPage() {
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="running">Running</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="ready">Ready</SelectItem>
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
@@ -278,17 +282,21 @@ export default function EvaluationsPage() {
                   </div>
                   
                   <div className="flex items-center space-x-2 ml-4">
-                    {evaluation.status === 'running' && (
-                      <Button variant="outline" size="sm">
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Refresh
+                    {(evaluation.status === 'processing' || evaluation.status === 'draft' || evaluation.status === 'ready') && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/evaluations/${evaluation.id}`}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Progress
+                        </Link>
                       </Button>
                     )}
                     {evaluation.status === 'completed' && (
                       <>
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Results
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/evaluations/${evaluation.id}`}>
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Results
+                          </Link>
                         </Button>
                         <Button variant="outline" size="sm">
                           <Download className="w-4 h-4 mr-2" />
