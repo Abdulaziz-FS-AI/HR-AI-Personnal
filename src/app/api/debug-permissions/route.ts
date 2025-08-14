@@ -9,7 +9,7 @@ export async function GET() {
     const contextResult = await pool.request().query(`
       SELECT 
         DB_NAME() as current_database,
-        USER_NAME() as current_user,
+        USER_NAME() as current_user_name,
         SCHEMA_NAME() as current_schema,
         SYSTEM_USER as system_user,
         @@SERVERNAME as server_name
