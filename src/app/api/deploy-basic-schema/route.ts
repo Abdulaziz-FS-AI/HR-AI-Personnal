@@ -8,7 +8,7 @@ export async function POST() {
     // Basic schema deployment - essential tables only
     const schema = `
       -- Users table
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='users' AND xtype='U')
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[users]') AND type in (N'U'))
       BEGIN
         CREATE TABLE users (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -28,7 +28,7 @@ export async function POST() {
       END
 
       -- Roles table
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='roles' AND xtype='U')
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[roles]') AND type in (N'U'))
       BEGIN
         CREATE TABLE roles (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -50,7 +50,7 @@ export async function POST() {
       END
 
       -- Role Skills table
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='role_skills' AND xtype='U')
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[role_skills]') AND type in (N'U'))
       BEGIN
         CREATE TABLE role_skills (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -63,7 +63,7 @@ export async function POST() {
       END
 
       -- Role Questions table
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='role_questions' AND xtype='U')
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[role_questions]') AND type in (N'U'))
       BEGIN
         CREATE TABLE role_questions (
           id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
@@ -76,7 +76,7 @@ export async function POST() {
       END
 
       -- Batch Sessions table (for evaluations)
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='batch_sessions' AND xtype='U')
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[batch_sessions]') AND type in (N'U'))
       BEGIN
         CREATE TABLE batch_sessions (
           session_id NVARCHAR(100) PRIMARY KEY,
