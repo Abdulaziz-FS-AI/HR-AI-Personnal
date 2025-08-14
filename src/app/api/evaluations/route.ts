@@ -156,7 +156,6 @@ export async function POST(request: NextRequest) {
       startedAt: new Date(),
       status: 'pending'
     }
-    const evaluation = { id: sessionId, name, ...batchSession }
 
     return NextResponse.json({
       success: true,
