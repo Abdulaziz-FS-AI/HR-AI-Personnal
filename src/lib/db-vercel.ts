@@ -1,4 +1,5 @@
 import sql from 'mssql'
+import { getDatabaseConfig, validateDatabaseConfig } from './db-config-vercel'
 
 // Vercel-optimized database connection for serverless environment
 // Uses singleton pattern with connection pooling optimized for serverless
@@ -9,32 +10,23 @@ let globalPool: sql.ConnectionPool | undefined
 const getConfig = (): sql.config => {
   console.log('🔧 Getting database config for Vercel...')
   
-  // Check environment variables
-  const envCheck = {
-    server: process.env.DB_SERVER,
-    database: process.env.DB_DATABASE,
-    user: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD
-  }
-
-  console.log('Environment variables status:', {
-    server: envCheck.server ? 'present' : 'MISSING',
-    database: envCheck.database ? 'present' : 'MISSING',
-    user: envCheck.user ? 'present' : 'MISSING',
-    password: envCheck.password ? 'present' : 'MISSING',
+  // Use the new configuration helper that checks multiple naming conventions
+  const dbConfig = validateDatabaseConfig()
+  
+  console.log('Database configuration loaded:', {
+    hasServer: !!dbConfig.server,
+    hasDatabase: !!dbConfig.database,
+    hasUser: !!dbConfig.user,
+    hasPassword: !!dbConfig.password,
     isVercel: !!process.env.VERCEL,
     nodeEnv: process.env.NODE_ENV
   })
 
-  if (!envCheck.server || !envCheck.database || !envCheck.user || !envCheck.password) {
-    throw new Error(`Missing database configuration. Required: DB_SERVER, DB_DATABASE, DB_USERNAME, DB_PASSWORD`)
-  }
-
   return {
-    server: envCheck.server,
-    database: envCheck.database,
-    user: envCheck.user,
-    password: envCheck.password,
+    server: dbConfig.server,
+    database: dbConfig.database,
+    user: dbConfig.user,
+    password: dbConfig.password,
     options: {
       encrypt: true,
       trustServerCertificate: true,

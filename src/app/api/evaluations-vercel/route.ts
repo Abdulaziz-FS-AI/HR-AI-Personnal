@@ -10,6 +10,32 @@ export async function GET(request: NextRequest) {
   console.log('🚀 VERCEL EVALUATION: Starting GET request...')
   
   try {
+    // First check if environment variables exist
+    const hasEnvVars = {
+      server: !!process.env.DB_SERVER,
+      database: !!process.env.DB_DATABASE,
+      user: !!process.env.DB_USERNAME,
+      password: !!process.env.DB_PASSWORD
+    }
+    
+    if (!hasEnvVars.server || !hasEnvVars.database || !hasEnvVars.user || !hasEnvVars.password) {
+      console.error('❌ Environment variables missing:', hasEnvVars)
+      return NextResponse.json({
+        success: false,
+        error: 'Database configuration missing',
+        message: 'Database environment variables are not configured in Vercel',
+        missing: Object.entries(hasEnvVars)
+          .filter(([_, exists]) => !exists)
+          .map(([key]) => `DB_${key.toUpperCase()}`),
+        instructions: {
+          message: 'Add these variables in Vercel Dashboard',
+          url: 'https://vercel.com/dashboard/project/settings/environment-variables',
+          debugEndpoint: '/api/env-check'
+        },
+        responseTime: Date.now() - startTime
+      }, { status: 503 })
+    }
+    
     // Step 1: Health check
     const health = await vercelDbHealthCheck()
     
@@ -19,7 +45,8 @@ export async function GET(request: NextRequest) {
         success: false,
         error: 'Database connection failed',
         details: health.error,
-        recommendation: 'Check database configuration and network connectivity',
+        recommendation: 'Environment variables are set but connection failed. Check server address and credentials.',
+        envVarsPresent: hasEnvVars,
         responseTime: Date.now() - startTime
       }, { status: 503 })
     }

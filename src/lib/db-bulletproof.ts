@@ -1,4 +1,5 @@
 import sql from 'mssql'
+import { getDatabaseConfig } from './db-config-vercel'
 
 interface ConnectionConfig {
   server: string
@@ -41,21 +42,25 @@ class BulletproofDatabase {
   private initializeConfig(): void {
     if (!this.config.server) {
       // Log environment availability for debugging
-      console.log('🔧 Initializing database config...')
-      console.log('Environment check:', {
-        hasServer: !!process.env.DB_SERVER,
-        hasDatabase: !!process.env.DB_DATABASE,
-        hasUser: !!process.env.DB_USERNAME,
-        hasPassword: !!process.env.DB_PASSWORD,
+      console.log('🔧 Initializing bulletproof database config...')
+      
+      // Use the unified configuration helper that checks multiple naming conventions
+      const dbConfig = getDatabaseConfig()
+      
+      console.log('Configuration loaded:', {
+        hasServer: !!dbConfig.server,
+        hasDatabase: !!dbConfig.database,
+        hasUser: !!dbConfig.user,
+        hasPassword: !!dbConfig.password,
         nodeEnv: process.env.NODE_ENV,
         isVercel: !!process.env.VERCEL
       })
 
       this.config = {
-        server: process.env.DB_SERVER || '',
-        database: process.env.DB_DATABASE || '',
-        user: process.env.DB_USERNAME || '',
-        password: process.env.DB_PASSWORD || '',
+        server: dbConfig.server,
+        database: dbConfig.database,
+        user: dbConfig.user,
+        password: dbConfig.password,
         options: {
           encrypt: true,
           trustServerCertificate: true,
@@ -77,13 +82,14 @@ class BulletproofDatabase {
 
       // Validate required config only when actually used (not during build)
       if (!this.config.server || !this.config.database || !this.config.user || !this.config.password) {
-        console.error('❌ Missing database configuration:', {
-          server: this.config.server ? 'present' : 'MISSING',
-          database: this.config.database ? 'present' : 'MISSING',
-          user: this.config.user ? 'present' : 'MISSING',
-          password: this.config.password ? 'present' : 'MISSING'
-        })
-        throw new Error('Missing required database configuration. Check environment variables.')
+        const missing = []
+        if (!this.config.server) missing.push('server (AZURE_SQL_SERVER or DB_SERVER)')
+        if (!this.config.database) missing.push('database (AZURE_SQL_DATABASE or DB_DATABASE)')
+        if (!this.config.user) missing.push('user (AZURE_SQL_USER or DB_USERNAME)')
+        if (!this.config.password) missing.push('password (AZURE_SQL_PASSWORD or DB_PASSWORD)')
+        
+        console.error('❌ Missing database configuration:', missing)
+        throw new Error(`Missing database configuration: ${missing.join(', ')}. Check environment variables in Vercel dashboard.`)
       }
     }
   }

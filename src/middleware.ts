@@ -42,6 +42,7 @@ export function middleware(request: NextRequest) {
     '/api/deploy-evaluation-system',
     '/api/evaluation-health',
     '/api/evaluations-bulletproof',
+    '/api/env-check',
     '/'
   ]
   
