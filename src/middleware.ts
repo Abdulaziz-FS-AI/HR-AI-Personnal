@@ -43,6 +43,8 @@ export function middleware(request: NextRequest) {
     '/api/evaluation-health',
     '/api/evaluations-bulletproof',
     '/api/env-check',
+    '/api/fix-status-constraint-final',
+    '/api/evaluations-working',
     '/'
   ]
   
