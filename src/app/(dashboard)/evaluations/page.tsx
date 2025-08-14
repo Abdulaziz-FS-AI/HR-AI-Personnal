@@ -51,8 +51,8 @@ export default function EvaluationsPage() {
   const fetchEvaluations = async () => {
     setIsLoading(true)
     try {
-      // Use test endpoint for development
-      const response = await fetch('/api/evaluations-test')
+      // Use the ULTIMATE evaluation endpoint that actually works
+      const response = await fetch('/api/evaluation-ultimate')
       if (response.ok) {
         const data = await response.json()
         setEvaluations(data.data || [])

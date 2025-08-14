@@ -171,8 +171,8 @@ export default function CreateEvaluationPage() {
         }))
       }
 
-      // Use test endpoint for development
-      const response = await fetch('/api/evaluations-test', {
+      // Use the ULTIMATE evaluation endpoint that actually works
+      const response = await fetch('/api/evaluation-ultimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sessionData)
