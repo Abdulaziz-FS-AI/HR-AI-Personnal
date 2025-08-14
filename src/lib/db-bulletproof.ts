@@ -40,6 +40,17 @@ class BulletproofDatabase {
 
   private initializeConfig(): void {
     if (!this.config.server) {
+      // Log environment availability for debugging
+      console.log('🔧 Initializing database config...')
+      console.log('Environment check:', {
+        hasServer: !!process.env.DB_SERVER,
+        hasDatabase: !!process.env.DB_DATABASE,
+        hasUser: !!process.env.DB_USERNAME,
+        hasPassword: !!process.env.DB_PASSWORD,
+        nodeEnv: process.env.NODE_ENV,
+        isVercel: !!process.env.VERCEL
+      })
+
       this.config = {
         server: process.env.DB_SERVER || '',
         database: process.env.DB_DATABASE || '',
@@ -53,10 +64,10 @@ class BulletproofDatabase {
           enableArithAbort: true
         },
         pool: {
-          max: 10, // Maximum pool size
+          max: 5, // Reduced for serverless
           min: 0,  // Minimum pool size
-          idleTimeoutMillis: 30000, // 30 seconds
-          acquireTimeoutMillis: 60000, // 60 seconds
+          idleTimeoutMillis: 10000, // 10 seconds - shorter for serverless
+          acquireTimeoutMillis: 30000, // 30 seconds
           createTimeoutMillis: 30000, // 30 seconds  
           destroyTimeoutMillis: 5000, // 5 seconds
           reapIntervalMillis: 1000, // 1 second
@@ -66,6 +77,12 @@ class BulletproofDatabase {
 
       // Validate required config only when actually used (not during build)
       if (!this.config.server || !this.config.database || !this.config.user || !this.config.password) {
+        console.error('❌ Missing database configuration:', {
+          server: this.config.server ? 'present' : 'MISSING',
+          database: this.config.database ? 'present' : 'MISSING',
+          user: this.config.user ? 'present' : 'MISSING',
+          password: this.config.password ? 'present' : 'MISSING'
+        })
         throw new Error('Missing required database configuration. Check environment variables.')
       }
     }
@@ -273,6 +290,8 @@ class BulletproofDatabase {
     error?: string
   }> {
     try {
+      console.log('🏥 Starting health check...')
+      
       // Initialize config before health check
       this.initializeConfig()
       
@@ -281,14 +300,18 @@ class BulletproofDatabase {
       // Test connection with simple query
       await this.executeQuery('SELECT 1 as test')
       
-      return {
+      const health = {
         connected: true,
         poolSize: pool.size,
         totalConnections: pool.totalConnectionCount,
         idleConnections: pool.idleConnectionCount
       }
       
+      console.log('✅ Health check passed:', health)
+      return health
+      
     } catch (error) {
+      console.error('❌ Health check failed:', error)
       return {
         connected: false,
         error: error instanceof Error ? error.message : 'Unknown error'

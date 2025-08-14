@@ -4,12 +4,25 @@ import sql from 'mssql'
 // Dynamic import to prevent build-time initialization
 let bulletproofDb: any = null
 let executeQuerySafely: any = null
+let initError: Error | null = null
 
 async function initializeBulletproof() {
+  if (initError) {
+    throw initError
+  }
+  
   if (!bulletproofDb) {
-    const dbModule = await import('@/lib/db-bulletproof')
-    bulletproofDb = dbModule.bulletproofDb
-    executeQuerySafely = dbModule.executeQuerySafely
+    try {
+      console.log('🔄 Dynamically importing bulletproof database module...')
+      const dbModule = await import('@/lib/db-bulletproof')
+      bulletproofDb = dbModule.bulletproofDb
+      executeQuerySafely = dbModule.executeQuerySafely
+      console.log('✅ Bulletproof database module loaded successfully')
+    } catch (error) {
+      console.error('❌ Failed to initialize bulletproof database:', error)
+      initError = error as Error
+      throw error
+    }
   }
 }
 
@@ -20,9 +33,33 @@ export async function GET(request: NextRequest) {
   
   try {
     console.log('🔍 BULLETPROOF TEST: Starting evaluations test...')
+    console.log('Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: process.env.VERCEL,
+      hasDbConfig: !!process.env.DB_SERVER
+    })
     
     // Initialize bulletproof connection on runtime (not build time)
-    await initializeBulletproof()
+    try {
+      await initializeBulletproof()
+    } catch (initError) {
+      console.error('❌ Bulletproof initialization failed:', initError)
+      return NextResponse.json({
+        success: false,
+        error: 'Database initialization failed',
+        message: 'Unable to initialize database connection. Check server logs.',
+        debug: {
+          error: initError instanceof Error ? initError.message : 'Unknown init error',
+          hasEnvVars: {
+            server: !!process.env.DB_SERVER,
+            database: !!process.env.DB_DATABASE,
+            user: !!process.env.DB_USERNAME,
+            password: !!process.env.DB_PASSWORD
+          }
+        },
+        responseTime: Date.now() - startTime
+      }, { status: 503 })
+    }
     
     // Use test user ID
     const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'
@@ -172,9 +209,28 @@ export async function POST(request: NextRequest) {
   
   try {
     console.log('🚀 BULLETPROOF TEST: Creating evaluation...')
+    console.log('Request environment:', {
+      method: 'POST',
+      hasBody: !!request.body,
+      headers: Object.fromEntries(request.headers.entries())
+    })
     
     // Initialize bulletproof connection on runtime (not build time)
-    await initializeBulletproof()
+    try {
+      await initializeBulletproof()
+    } catch (initError) {
+      console.error('❌ POST: Bulletproof initialization failed:', initError)
+      return NextResponse.json({
+        success: false,
+        error: 'Database initialization failed',
+        message: 'Unable to initialize database connection for create operation.',
+        debug: {
+          error: initError instanceof Error ? initError.message : 'Unknown init error',
+          operation: 'CREATE_EVALUATION'
+        },
+        responseTime: Date.now() - startTime
+      }, { status: 503 })
+    }
     
     // Use test user ID
     const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'

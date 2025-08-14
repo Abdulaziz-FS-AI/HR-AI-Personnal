@@ -4,6 +4,11 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
   
+  // Log middleware execution in production for debugging
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    console.log(`[Middleware] Path: ${path}, Method: ${request.method}`)
+  }
+  
   // Public paths that don't require authentication
   const publicPaths = [
     '/login',
@@ -24,6 +29,7 @@ export function middleware(request: NextRequest) {
     '/api/debug-schema',
     '/api/debug-permissions',
     '/api/evaluations-test',
+    '/api/evaluations-vercel',
     '/api/evaluations/process-test',
     '/api/verify-success',
     '/api/ensure-test-user',
@@ -31,6 +37,11 @@ export function middleware(request: NextRequest) {
     '/api/check-users-roles',
     '/api/check-constraints',
     '/api/check-status-constraint',
+    '/api/deploy-evaluation-final',
+    '/api/system-recovery',
+    '/api/deploy-evaluation-system',
+    '/api/evaluation-health',
+    '/api/evaluations-bulletproof',
     '/'
   ]
   
