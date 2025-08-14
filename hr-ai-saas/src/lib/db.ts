@@ -2,48 +2,40 @@ import sql from 'mssql'
 import { executeQuery } from './db-utils'
 
 /**
- * Validates that all required database environment variables are present
- * @throws {Error} If any required environment variable is missing
+ * Lazy-loaded database configuration for production builds
+ * Only validates when actually connecting, not during build
  */
-function validateDatabaseConfig() {
-  const required = [
-    'AZURE_SQL_SERVER',
-    'AZURE_SQL_DATABASE',
-    'AZURE_SQL_USER', 
-    'AZURE_SQL_PASSWORD'
-  ]
-  
-  const missing = required.filter(env => !process.env[env])
-  if (missing.length > 0) {
+function getConfig(): sql.config {
+  // Check environment variables at runtime
+  if (!process.env.AZURE_SQL_SERVER || 
+      !process.env.AZURE_SQL_DATABASE || 
+      !process.env.AZURE_SQL_USER || 
+      !process.env.AZURE_SQL_PASSWORD) {
     throw new Error(
-      `Missing required database environment variables: ${missing.join(', ')}\n` +
-      'Please ensure all database credentials are properly configured in your environment.'
+      'Database configuration missing. Please set AZURE_SQL_SERVER, AZURE_SQL_DATABASE, AZURE_SQL_USER, and AZURE_SQL_PASSWORD environment variables.'
     )
   }
-}
 
-// Validate configuration on module load
-validateDatabaseConfig()
-
-const config: sql.config = {
-  server: process.env.AZURE_SQL_SERVER!,
-  database: process.env.AZURE_SQL_DATABASE!,
-  user: process.env.AZURE_SQL_USER!,
-  password: process.env.AZURE_SQL_PASSWORD!,
-  pool: {
-    max: 5, // Maximum number of connections in pool
-    min: 1, // Minimum number of connections in pool
-    idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
-    acquireTimeoutMillis: 30000, // Maximum time to wait for a connection
-  },
-  options: {
-    encrypt: true,
-    trustServerCertificate: false,
-    enableArithAbort: true,
-  },
-  connectionTimeout: 30000,
-  requestTimeout: 30000,
-  cancelTimeout: 5000,
+  return {
+    server: process.env.AZURE_SQL_SERVER,
+    database: process.env.AZURE_SQL_DATABASE,
+    user: process.env.AZURE_SQL_USER,
+    password: process.env.AZURE_SQL_PASSWORD,
+    pool: {
+      max: 5, // Maximum number of connections in pool
+      min: 1, // Minimum number of connections in pool
+      idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+      acquireTimeoutMillis: 30000, // Maximum time to wait for a connection
+    },
+    options: {
+      encrypt: true,
+      trustServerCertificate: false,
+      enableArithAbort: true,
+    },
+    connectionTimeout: 30000,
+    requestTimeout: 30000,
+    cancelTimeout: 5000,
+  }
 }
 
 // Global connection pool for serverless optimization
@@ -78,6 +70,7 @@ export async function getDbConnection(): Promise<sql.ConnectionPool> {
 }
 
 async function createPool(): Promise<sql.ConnectionPool> {
+  const config = getConfig()
   const pool = new sql.ConnectionPool(config)
   
   // Add connection event handlers

@@ -2,7 +2,36 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // TEMPORARILY DISABLED - ALLOW ALL REQUESTS
+  const path = request.nextUrl.pathname
+  
+  // Public paths that don't require authentication
+  const publicPaths = [
+    '/login',
+    '/register',
+    '/api/auth',
+    '/api/health',
+    '/'
+  ]
+  
+  // Check if the current path is public
+  const isPublicPath = publicPaths.some(publicPath => 
+    path === publicPath || path.startsWith(`${publicPath}/`)
+  )
+  
+  if (isPublicPath) {
+    return NextResponse.next()
+  }
+  
+  // Check for authentication session
+  const hasSession = checkForAuthSession(request)
+  
+  if (!hasSession) {
+    // Redirect to login if not authenticated
+    const loginUrl = new URL('/login', request.url)
+    loginUrl.searchParams.set('from', path)
+    return NextResponse.redirect(loginUrl)
+  }
+  
   return NextResponse.next()
 }
 

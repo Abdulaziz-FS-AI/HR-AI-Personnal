@@ -90,7 +90,7 @@ export class EvaluationAnalyzer {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-          model: 'openai/gpt-oss-120b',
+          model: 'meta-llama/Llama-3.3-70B-Instruct',
           messages: [
             {
               role: 'system',

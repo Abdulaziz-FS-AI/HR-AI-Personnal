@@ -357,9 +357,10 @@ export class PDFProcessor {
   ): Promise<void> {
     const serviceBus = getServiceBusService()
     
-    // Get role details from database (you'd implement this)
-    const roleSkills = [] // await getRoleSkills(roleId)
-    const roleQuestions = [] // await getRoleQuestions(roleId)
+    // Get role details from database
+    const { getRoleSkills, getRoleQuestions } = await import('../db-roles')
+    const roleSkills = await getRoleSkills(roleId)
+    const roleQuestions = await getRoleQuestions(roleId)
 
     const message: AIAnalysisMessage = {
       fileId,

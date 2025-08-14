@@ -21,8 +21,16 @@ function validateDatabaseConfig() {
   }
 }
 
-// Validate configuration on module load
-validateDatabaseConfig()
+// Only validate at runtime, not during build
+if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
+  // Server-side production runtime validation
+  try {
+    validateDatabaseConfig()
+  } catch (error) {
+    console.error('Database configuration error:', error)
+    // Don't throw during build, only log
+  }
+}
 
 const config = {
   server: process.env.AZURE_SQL_SERVER!,
