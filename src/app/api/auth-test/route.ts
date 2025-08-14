@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🧪 Auth test endpoint called')
+    console.log('🧪 Auth test endpoint called - NO AUTH IMPORT')
     
-    // Test NextAuth session
-    const session = await auth()
-    
-    // Test cookies manually
+    // Test cookies manually without importing auth
     const cookies = Object.fromEntries(request.cookies.entries())
     const sessionCookies = Object.keys(cookies).filter(key => 
       key.includes('session') || key.includes('authjs') || key.includes('next-auth')
@@ -16,11 +12,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      session: session ? {
-        user: session.user,
-        expires: session.expires,
-        hasUserId: !!session.user?.id
-      } : null,
+      message: 'Auth test endpoint working without auth import',
       cookies: {
         total: Object.keys(cookies).length,
         sessionCookies: sessionCookies,
