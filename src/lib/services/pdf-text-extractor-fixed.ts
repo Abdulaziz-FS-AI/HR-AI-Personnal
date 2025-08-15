@@ -25,39 +25,29 @@ export interface ExtractedResumeData {
 
 export class PDFTextExtractorFixed {
   /**
-   * Extract text from PDF buffer using pdf-lib (more reliable)
+   * Extract text from PDF buffer without pdf-parse to avoid test file errors
    */
   async extractText(pdfBuffer: Buffer): Promise<ExtractedResumeData> {
     try {
-      // Use pdf-lib for basic extraction
+      // Use pdf-lib for metadata
       const pdfDoc = await PDFDocument.load(pdfBuffer)
       const pageCount = pdfDoc.getPageCount()
       
-      // For text extraction, we'll use a fallback approach
-      // Since pdf-lib doesn't extract text directly, we'll use a different method
       let fullText = ''
       
-      // Try using pdf-parse but with error handling
+      // Direct buffer text extraction without pdf-parse
       try {
-        // Only import pdf-parse if needed, with proper error handling
-        const pdf = require('pdf-parse')
-        const data = await pdf(pdfBuffer, {
-          // Disable version check that causes the test file error
-          version: 'default',
-          // Ensure we're not using any test data
-          pagerender: null,
-          max: 0 // Extract all pages
-        })
-        fullText = data.text || ''
-      } catch (pdfParseError) {
-        console.warn('pdf-parse failed, using fallback extraction')
-        // Fallback: Convert buffer to string (basic extraction)
+        // Extract text by analyzing PDF structure directly
+        fullText = await this.extractTextFromBuffer(pdfBuffer)
+      } catch (extractError) {
+        console.warn('Primary extraction failed, using fallback')
+        // Fallback: Basic text extraction
         fullText = this.extractTextFallback(pdfBuffer)
       }
       
       // If still no text, provide a meaningful default
       if (!fullText || fullText.trim().length === 0) {
-        fullText = 'Unable to extract text from PDF. The file may be scanned or image-based.'
+        fullText = 'PDF content could not be extracted. Please ensure the file contains selectable text.'
       }
       
       const wordCount = fullText.split(/\s+/).filter(word => word.length > 0).length
@@ -88,6 +78,92 @@ export class PDFTextExtractorFixed {
           extractedAt: new Date()
         }
       }
+    }
+  }
+
+  /**
+   * Extract text from PDF buffer directly without pdf-parse
+   */
+  private async extractTextFromBuffer(buffer: Buffer): Promise<string> {
+    try {
+      // Convert buffer to string and look for text patterns
+      const bufferString = buffer.toString('binary')
+      
+      // Look for text between PDF stream markers
+      const textMatches: string[] = []
+      
+      // Pattern 1: Text between BT (Begin Text) and ET (End Text) markers
+      const btEtPattern = /BT\s*(.*?)\s*ET/gs
+      const btEtMatches = bufferString.matchAll(btEtPattern)
+      for (const match of btEtMatches) {
+        if (match[1]) {
+          // Extract text from PDF commands
+          const textContent = this.extractTextFromPDFCommands(match[1])
+          if (textContent) textMatches.push(textContent)
+        }
+      }
+      
+      // Pattern 2: Look for readable text sequences
+      const readablePattern = /[\x20-\x7E]{10,}/g
+      const readableMatches = bufferString.matchAll(readablePattern)
+      for (const match of readableMatches) {
+        const text = match[0].trim()
+        // Filter out PDF commands and binary data
+        if (text && !text.includes('<<') && !text.includes('>>') && 
+            !text.startsWith('/') && !text.match(/^\d+\s+\d+\s+obj/)) {
+          textMatches.push(text)
+        }
+      }
+      
+      // Combine and clean extracted text
+      let combinedText = textMatches.join(' ')
+      
+      // Clean up the text
+      combinedText = combinedText
+        .replace(/\([^)]*\)/g, (match) => {
+          // Keep text inside parentheses if it looks like actual content
+          const inner = match.slice(1, -1)
+          return inner.match(/^[\x20-\x7E]+$/) ? inner : ''
+        })
+        .replace(/[<>\/\[\]{}]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      
+      return combinedText || ''
+    } catch (error) {
+      console.error('Buffer extraction error:', error)
+      return ''
+    }
+  }
+  
+  /**
+   * Extract text from PDF text commands
+   */
+  private extractTextFromPDFCommands(commands: string): string {
+    try {
+      // Look for text in parentheses (PDF text strings)
+      const textPattern = /\(([^)]+)\)/g
+      const matches = commands.matchAll(textPattern)
+      const textParts: string[] = []
+      
+      for (const match of matches) {
+        if (match[1]) {
+          // Unescape PDF string escapes
+          const unescaped = match[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '\r')
+            .replace(/\\t/g, '\t')
+            .replace(/\\\(/g, '(')
+            .replace(/\\\)/g, ')')
+            .replace(/\\\\/g, '\\')
+          
+          textParts.push(unescaped)
+        }
+      }
+      
+      return textParts.join(' ')
+    } catch {
+      return ''
     }
   }
 
