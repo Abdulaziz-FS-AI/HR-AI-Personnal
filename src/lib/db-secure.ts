@@ -65,18 +65,99 @@ export async function getUserRole(userId: string, roleId: string) {
 
 export async function createUserRole(userId: string, roleData: any) {
   return executeUserScopedQuery(userId, async (pool, uid) => {
-    // Ensure user_id is always set to the authenticated user
-    const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, uid)
-      .input('title', sql.NVarChar, roleData.title)
-      .input('description', sql.NText, roleData.description)
-      .input('responsibilities', sql.NText, roleData.responsibilities)
-      .query(`
-        INSERT INTO roles (user_id, title, description, responsibilities)
-        OUTPUT INSERTED.*
-        VALUES (@userId, @title, @description, @responsibilities)
+    // Start transaction for data integrity
+    const transaction = new sql.Transaction(pool)
+    
+    try {
+      await transaction.begin()
+      
+      // Create role within transaction
+      const roleRequest = new sql.Request(transaction)
+      const roleResult = await roleRequest
+        .input('userId', sql.UniqueIdentifier, uid)
+        .input('title', sql.NVarChar, roleData.title)
+        .input('description', sql.NText, roleData.description || null)
+        .input('responsibilities', sql.NText, roleData.responsibilities || null)
+        .input('department', sql.NVarChar, roleData.department || null)
+        .input('location', sql.NVarChar, roleData.location || null)
+        .input('employmentType', sql.NVarChar, roleData.employmentType || 'full-time')
+        .input('seniorityLevel', sql.NVarChar, roleData.seniorityLevel || 'mid')
+        .input('minExperienceYears', sql.Int, roleData.minExperienceYears || null)
+        .input('maxExperienceYears', sql.Int, roleData.maxExperienceYears || null)
+        .input('educationRequirements', sql.NText, roleData.educationRequirements || null)
+        .query(`
+          INSERT INTO roles (
+            user_id, title, description, responsibilities, department, location,
+            employment_type, seniority_level, min_experience_years, max_experience_years,
+            education_requirements, is_active, created_at, updated_at
+          )
+          OUTPUT INSERTED.*
+          VALUES (
+            @userId, @title, @description, @responsibilities, @department, @location,
+            @employmentType, @seniorityLevel, @minExperienceYears, @maxExperienceYears,
+            @educationRequirements, 1, GETDATE(), GETDATE()
+          )
+        `)
+      
+      const newRole = roleResult.recordset[0]
+      
+      // Validate that role was created
+      if (!newRole || !newRole.id) {
+        throw new Error('Failed to create role - no ID returned')
+      }
+      
+      // Check if role_requirements table exists before trying to insert
+      const tableCheck = await new sql.Request(transaction).query(`
+        SELECT COUNT(*) as exists 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_NAME = 'role_requirements'
       `)
-    return result.recordset[0]
+      
+      const tableExists = tableCheck.recordset[0].exists > 0
+      
+      if (!tableExists) {
+        console.warn('⚠️ role_requirements table does not exist - creating role without requirements')
+        // Commit the role creation even without requirements table
+        await transaction.commit()
+        return {
+          ...newRole,
+          _warning: 'Role created but requirements table missing. Please deploy database schema.'
+        }
+      }
+      
+      // If we have requirements and table exists, try to save them
+      if (roleData.requirements && Array.isArray(roleData.requirements)) {
+        for (const requirement of roleData.requirements) {
+          await new sql.Request(transaction)
+            .input('roleId', sql.UniqueIdentifier, newRole.id)
+            .input('requirementType', sql.NVarChar, requirement.type || 'other')
+            .input('requirementValue', sql.NText, requirement.value || '')
+            .input('isRequired', sql.Bit, requirement.isRequired || false)
+            .input('priority', sql.Int, requirement.priority || 5)
+            .query(`
+              INSERT INTO role_requirements (
+                role_id, requirement_type, requirement_value, is_required, priority, created_at, updated_at
+              )
+              VALUES (@roleId, @requirementType, @requirementValue, @isRequired, @priority, GETDATE(), GETDATE())
+            `)
+        }
+      }
+      
+      // Commit transaction - all or nothing
+      await transaction.commit()
+      return newRole
+      
+    } catch (error) {
+      // Rollback transaction on any error
+      try {
+        await transaction.rollback()
+      } catch (rollbackError) {
+        console.error('Transaction rollback failed:', rollbackError)
+      }
+      
+      console.error('Role creation transaction failed:', error)
+      throw new Error(`Failed to create role: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   })
 }
 
