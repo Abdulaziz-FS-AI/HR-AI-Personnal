@@ -247,8 +247,8 @@ export default function CreateEvaluationPage() {
       // Step 3: Process files with AI
       toast.info('Starting AI analysis...')
       
-      // Use test endpoint for development
-      const processResponse = await fetch('/api/evaluations/process-test', {
+      // Use proper authenticated endpoint
+      const processResponse = await fetch('/api/evaluations/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
