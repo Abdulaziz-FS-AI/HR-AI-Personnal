@@ -99,3 +99,4 @@ quick-clean.sh
 double-critical-analysis.js
 ultimate-diagnosis.js
 SECURITY-AUDIT-REPORT.md
+.git-rewrite/
