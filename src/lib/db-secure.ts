@@ -108,12 +108,12 @@ export async function createUserRole(userId: string, roleData: any) {
       
       // Check if role_requirements table exists before trying to insert
       const tableCheck = await new sql.Request(transaction).query(`
-        SELECT COUNT(*) as exists 
+        SELECT COUNT(*) as table_count 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_NAME = 'role_requirements'
       `)
       
-      const tableExists = tableCheck.recordset[0].exists > 0
+      const tableExists = tableCheck.recordset[0].table_count > 0
       
       if (!tableExists) {
         console.warn('⚠️ role_requirements table does not exist - creating role without requirements')
