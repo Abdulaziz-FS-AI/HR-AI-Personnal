@@ -87,3 +87,15 @@ yarn-error.log
 .stylelintcache
 *.tgz
 *.tar.gz
+# Security - Never commit these
+.env.local
+.env.production
+.env.staging
+*.key
+*.pem
+passwords.txt
+clean-secrets.sh
+quick-clean.sh
+double-critical-analysis.js
+ultimate-diagnosis.js
+SECURITY-AUDIT-REPORT.md
