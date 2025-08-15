@@ -3,7 +3,7 @@ import { requireUserContext } from '@/lib/security/user-context'
 import { withRateLimit } from '@/lib/security/rate-limit'
 import { evaluationQueue } from '@/lib/azure/evaluation-queue'
 import { EvaluationFileUploader } from '@/lib/azure/evaluation-uploader'
-import { PDFTextExtractor } from '@/lib/services/pdf-text-extractor'
+import { PDFTextExtractorFixed } from '@/lib/services/pdf-text-extractor-fixed'
 import { EvaluationAnalyzer } from '@/lib/ai/evaluation-analyzer'
 import sql from 'mssql'
 import { getDbConnection } from '@/lib/db'
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Process files directly
     const uploader = new EvaluationFileUploader()
-    const pdfExtractor = new PDFTextExtractor()
+    const pdfExtractor = new PDFTextExtractorFixed()
     const analyzer = new EvaluationAnalyzer()
 
     // Load role skills and questions

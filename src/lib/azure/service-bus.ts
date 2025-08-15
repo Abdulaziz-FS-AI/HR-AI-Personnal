@@ -41,9 +41,10 @@ interface ResultsAggregationMessage {
 }
 
 class ServiceBusService {
-  private client: ServiceBusClient
+  private client: ServiceBusClient | null = null
   private config: ServiceBusConfig
   private senders: Map<string, ServiceBusSender> = new Map()
+  private isAvailable: boolean = false
 
   constructor() {
     this.config = {
@@ -55,11 +56,33 @@ class ServiceBusService {
       }
     }
 
-    if (!this.config.connectionString) {
-      throw new Error('Azure Service Bus connection string not configured')
-    }
+    this.initializeClient()
+  }
 
-    this.client = new ServiceBusClient(this.config.connectionString)
+  /**
+   * Initialize Service Bus client with error handling
+   */
+  private initializeClient(): void {
+    try {
+      if (this.config.connectionString) {
+        this.client = new ServiceBusClient(this.config.connectionString)
+        this.isAvailable = true
+        console.log('✅ Service Bus connected successfully')
+      } else {
+        console.warn('⚠️ Azure Service Bus not configured - running without queue support')
+        this.isAvailable = false
+      }
+    } catch (error) {
+      console.error('❌ Service Bus initialization failed:', error)
+      this.isAvailable = false
+    }
+  }
+
+  /**
+   * Check if Service Bus is available
+   */
+  public isServiceBusAvailable(): boolean {
+    return this.isAvailable && this.client !== null
   }
 
   /**
@@ -96,8 +119,12 @@ class ServiceBusService {
    * Get or create a sender for a specific queue
    */
   private async getSender(queueName: string): Promise<ServiceBusSender> {
+    if (!this.isServiceBusAvailable()) {
+      throw new Error('Service Bus not available')
+    }
+    
     if (!this.senders.has(queueName)) {
-      const sender = this.client.createSender(queueName)
+      const sender = this.client!.createSender(queueName)
       this.senders.set(queueName, sender)
     }
     return this.senders.get(queueName)!
@@ -107,6 +134,11 @@ class ServiceBusService {
    * Send file for processing (PDF extraction)
    */
   async queueFileForProcessing(message: FileProcessingMessage): Promise<void> {
+    if (!this.isServiceBusAvailable()) {
+      console.warn('⚠️ Service Bus not available - file will be processed directly')
+      return
+    }
+    
     await this.retryOperation(async () => {
       const sender = await this.getSender(this.config.queueNames.fileProcessing)
       
@@ -138,6 +170,11 @@ class ServiceBusService {
    * Send extracted text for AI analysis
    */
   async queueForAIAnalysis(message: AIAnalysisMessage): Promise<void> {
+    if (!this.isServiceBusAvailable()) {
+      console.warn('⚠️ Service Bus not available - AI analysis will be processed directly')
+      return
+    }
+    
     try {
       const sender = await this.getSender(this.config.queueNames.aiAnalysis)
       
@@ -298,12 +335,16 @@ let serviceBusService: ServiceBusService | null = null
 
 export function getServiceBusService(): ServiceBusService {
   if (!serviceBusService) {
-    serviceBusService = new ServiceBusService()
+    try {
+      serviceBusService = new ServiceBusService()
+    } catch (error) {
+      console.error('Failed to initialize Service Bus service:', error)
+      // Return a dummy service that gracefully handles all operations
+      serviceBusService = new ServiceBusService()
+    }
   }
   return serviceBusService
 }
-
-// NOTE: getServiceBusService already exists above (line 299)
 
 export type { 
   FileProcessingMessage, 

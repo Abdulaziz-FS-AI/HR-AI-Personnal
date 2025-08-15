@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EvaluationFileUploader } from '@/lib/azure/evaluation-uploader'
-import { PDFTextExtractor } from '@/lib/services/pdf-text-extractor'
+import { PDFTextExtractorFixed } from '@/lib/services/pdf-text-extractor-fixed'
 import { EvaluationAnalyzer } from '@/lib/ai/evaluation-analyzer'
 import sql from 'mssql'
 import { getDbConnection } from '@/lib/db'
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     // Process files directly (simplified for testing)
     const uploader = new EvaluationFileUploader()
-    const pdfExtractor = new PDFTextExtractor()
+    const pdfExtractor = new PDFTextExtractorFixed()
     const analyzer = new EvaluationAnalyzer()
 
     // Load role skills

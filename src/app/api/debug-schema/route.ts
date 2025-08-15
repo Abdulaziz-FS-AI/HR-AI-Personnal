@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getDbConnection } from '@/lib/db-config'
+import { withDebugAuth, withDebugRateLimit } from '@/lib/security/debug-auth'
+import { withErrorHandler } from '@/lib/api/error-handler'
 
-export async function POST() {
+async function debugSchemaHandler(request: NextRequest) {
   try {
     const pool = await getDbConnection()
     
@@ -95,3 +97,10 @@ export async function POST() {
     )
   }
 }
+
+// Export secured version of the endpoint
+export const POST = withErrorHandler(
+  withDebugRateLimit(
+    withDebugAuth(debugSchemaHandler)
+  )
+)

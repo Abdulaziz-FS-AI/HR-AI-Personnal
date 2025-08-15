@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sql from 'mssql'
 import { getDatabaseConfig } from '@/lib/db-config-vercel'
+import { resolveUserContext } from '@/lib/auth/user-resolver'
 
 // Global connection pool for serverless
 let globalPool: sql.ConnectionPool | undefined
@@ -119,15 +120,16 @@ export async function GET(request: NextRequest) {
     // Ensure schema is correct
     await ensureSchema(pool)
     
-    // Use test user for now
-    const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'
+    // Get authenticated user or fallback to test user in development
+    const userContext = await resolveUserContext(request)
+    const userId = userContext.userId
     
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
     
     const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, testUserId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .input('limit', sql.Int, limit)
       .input('offset', sql.Int, offset)
       .query(`
@@ -153,7 +155,7 @@ export async function GET(request: NextRequest) {
       `)
     
     const totalResult = await pool.request()
-      .input('userId', sql.UniqueIdentifier, testUserId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .query(`
         SELECT COUNT(*) as total 
         FROM evaluation_sessions 
@@ -206,14 +208,15 @@ export async function POST(request: NextRequest) {
     // Ensure schema is correct
     await ensureSchema(pool)
     
-    // Use test user for now
-    const testUserId = '5A5D9AC4-48BB-4117-89F2-5B1D8FC383B8'
+    // Get authenticated user or fallback to test user in development
+    const userContext = await resolveUserContext(request)
+    const userId = userContext.userId
     const evaluationId = crypto.randomUUID()
     
     // Create evaluation with 'draft' status (always valid)
     await pool.request()
       .input('id', sql.UniqueIdentifier, evaluationId)
-      .input('userId', sql.UniqueIdentifier, testUserId)
+      .input('userId', sql.UniqueIdentifier, userId)
       .input('roleId', sql.UniqueIdentifier, roleId)
       .input('name', sql.NVarChar, name)
       .input('totalFiles', sql.Int, files?.length || 0)
@@ -244,7 +247,7 @@ export async function POST(request: NextRequest) {
     const evaluation = {
       id: evaluationId,
       name,
-      userId: testUserId,
+      userId: userId,
       roleId,
       roleTitle: roleTitle || 'Unknown Role',
       status: files?.length > 0 ? 'pending' : 'draft',

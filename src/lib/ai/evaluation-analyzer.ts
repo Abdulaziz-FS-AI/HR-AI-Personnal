@@ -90,7 +90,7 @@ export class EvaluationAnalyzer {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-          model: 'meta-llama/Llama-3.3-70B-Instruct',
+          model: 'gpt-oss-120b', // Fixed: Using correct model as per CLAUDE.md
           messages: [
             {
               role: 'system',
