@@ -75,6 +75,21 @@ export async function POST() {
         )
       END
 
+      -- Role Requirements table (CRITICAL - was missing!)
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='role_requirements' AND xtype='U')
+      BEGIN
+        CREATE TABLE role_requirements (
+          id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+          role_id UNIQUEIDENTIFIER NOT NULL,
+          requirement_type NVARCHAR(50) NOT NULL,
+          requirement_value NVARCHAR(MAX),
+          is_required BIT DEFAULT 0,
+          priority INT DEFAULT 5,
+          created_at DATETIME2 DEFAULT GETDATE(),
+          updated_at DATETIME2 DEFAULT GETDATE()
+        )
+      END
+
       -- Batch Sessions table (for evaluations)
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='batch_sessions' AND xtype='U')
       BEGIN
@@ -216,6 +231,9 @@ export async function POST() {
       
       IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_role_questions_roles')
         ALTER TABLE role_questions ADD CONSTRAINT FK_role_questions_roles FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+      
+      IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_role_requirements_roles')
+        ALTER TABLE role_requirements ADD CONSTRAINT FK_role_requirements_roles FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
       
       IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_batch_sessions_users')
         ALTER TABLE batch_sessions ADD CONSTRAINT FK_batch_sessions_users FOREIGN KEY (user_id) REFERENCES users(id)
