@@ -58,6 +58,14 @@ const suggestedQuestions = {
   ]
 }
 
+// Helper function defined before component
+const validateQuestion = (text: string) => {
+  if (!text) return { isValid: false, message: "Question is required" }
+  if (text.length < 5) return { isValid: false, message: "Question too short (min 5 chars)" }
+  if (text.length > 200) return { isValid: false, message: "Question too long (max 200 chars)" }
+  return { isValid: true, message: "Valid question" }
+}
+
 export function QuestionsBuilder({ 
   initialQuestions = [], 
   onSubmit, 
@@ -67,11 +75,6 @@ export function QuestionsBuilder({
 }: QuestionsBuilderProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState<number | null>(null)
-  
-  // Memoize validation to prevent excessive re-rendering
-  const getValidQuestionsCount = () => {
-    return watchedQuestions.filter(q => q?.questionText && q.questionText.trim().length >= 5).length
-  }
 
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionsStepSchema),
@@ -93,7 +96,7 @@ export function QuestionsBuilder({
     name: "questions"
   })
 
-  const watchedQuestions = watch("questions")
+  const watchedQuestions = watch("questions") || []
   
   // Memoize validation results to prevent excessive computation
   const validationResults = useMemo(() => {
@@ -170,13 +173,6 @@ export function QuestionsBuilder({
     return "Optional"
   }
 
-  const validateQuestion = (text: string) => {
-    if (!text) return { isValid: false, message: "Question is required" }
-    if (text.length < 5) return { isValid: false, message: "Question too short (min 5 chars)" }
-    if (text.length > 200) return { isValid: false, message: "Question too long (max 200 chars)" }
-
-    return { isValid: true, message: "Valid question" }
-  }
 
   return (
     <Card className="w-full max-w-6xl mx-auto">
