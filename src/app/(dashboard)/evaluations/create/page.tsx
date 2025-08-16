@@ -159,13 +159,12 @@ export default function CreateEvaluationPage() {
     
     try {
       // Step 1: Create evaluation session
-      // Generate proper UUIDs for files
       const sessionData = {
         name: evaluationName,
         roleId: selectedRole.id,
         roleTitle: selectedRole.title,
         files: fileStatuses.map(f => ({
-          id: crypto.randomUUID(), // Generate proper UUID for database
+          id: crypto.randomUUID(),
           name: f.file.name,
           size: f.file.size
         }))
@@ -186,75 +185,49 @@ export default function CreateEvaluationPage() {
       const result = await response.json()
       const evaluationId = result.data.id
       
-      toast.success('Evaluation created! Processing files...')
+      toast.success('Evaluation created! Uploading files...')
       
-      // Step 2: Convert File objects to base64 and send for processing
-      const fileDataArray = []
+      // Step 2: Upload files using the new upload endpoint
+      const formData = new FormData()
       
-      // Use fileStatuses which contains actual File objects
+      // Add all files to FormData
       for (const fileStatus of fileStatuses) {
-        const file = fileStatus.file
+        formData.append('files', fileStatus.file)
         
         // Update UI to show uploading
         setFileStatuses(prev => 
-          prev.map(f => f.file.name === file.name 
-            ? { ...f, status: 'uploading' as const, progress: 0 }
+          prev.map(f => f.file.name === fileStatus.file.name 
+            ? { ...f, status: 'uploading' as const, progress: 50 }
             : f
           )
         )
-        
-        try {
-          // Convert to base64
-          const reader = new FileReader()
-          const base64Promise = new Promise<string>((resolve, reject) => {
-            reader.onload = () => {
-              const base64 = (reader.result as string).split(',')[1]
-              resolve(base64)
-            }
-            reader.onerror = reject
-          })
-          reader.readAsDataURL(file)
-          
-          const base64Content = await base64Promise
-          
-          fileDataArray.push({
-            id: crypto.randomUUID(),
-            name: file.name,
-            filename: file.name,  // Backend expects 'filename'
-            type: file.type,
-            size: file.size,
-            content: base64Content
-          })
-          
-          // Update progress
-          setFileStatuses(prev => 
-            prev.map(f => f.file.name === file.name 
-              ? { ...f, status: 'completed' as const, progress: 100 }
-              : f
-            )
-          )
-        } catch (error) {
-          console.error(`Failed to convert file ${file.name}:`, error)
-          setFileStatuses(prev => 
-            prev.map(f => f.file.name === file.name 
-              ? { ...f, status: 'failed' as const, error: 'Failed to process file' }
-              : f
-            )
-          )
-        }
       }
       
-      // Step 3: Process files with AI
-      toast.info('Starting AI analysis...')
-      
-      // Use proper authenticated endpoint
-      const processResponse = await fetch('/api/evaluations/process', {
+      // Upload files using new endpoint
+      const uploadResponse = await fetch(`/api/evaluations/${evaluationId}/upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          evaluationId,
-          files: fileDataArray
-        })
+        body: formData
+      })
+      
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json()
+        throw new Error(error.message || 'Failed to upload files')
+      }
+      
+      const uploadResult = await uploadResponse.json()
+      console.log('Upload result:', uploadResult)
+      
+      // Update all files to completed upload status
+      setFileStatuses(prev => 
+        prev.map(f => ({ ...f, status: 'completed' as const, progress: 100 }))
+      )
+      
+      toast.success(`Uploaded ${uploadResult.data.totalFiles} files! Starting AI analysis...`)
+      
+      // Step 3: Process files with AI using new endpoint
+      const processResponse = await fetch(`/api/evaluations/${evaluationId}/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       })
       
       if (!processResponse.ok) {
@@ -264,7 +237,7 @@ export default function CreateEvaluationPage() {
       
       const processResult = await processResponse.json()
       
-      toast.success(`Evaluation completed! Processed ${processResult.data.processedCount || processResult.data.processed || 0} files.`)
+      toast.success(`Evaluation completed! Processed ${processResult.data.processedFiles || 0} files.`)
       
       // Redirect to evaluations dashboard
       router.push('/evaluations')
@@ -273,6 +246,11 @@ export default function CreateEvaluationPage() {
       console.error('Error starting evaluation:', error)
       const errorMessage = error instanceof Error ? error.message : 'Failed to start evaluation'
       toast.error(errorMessage)
+      
+      // Reset file statuses on error
+      setFileStatuses(prev => 
+        prev.map(f => ({ ...f, status: 'failed' as const, error: errorMessage }))
+      )
     } finally {
       setIsProcessing(false)
     }

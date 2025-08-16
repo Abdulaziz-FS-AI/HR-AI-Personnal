@@ -152,7 +152,7 @@ export async function POST(
             )
             VALUES (
               @id, @evaluationId, @fileName, @blobName, @fileSize,
-              'uploaded', GETDATE(), GETDATE()
+              'pending', GETDATE(), GETDATE()
             )
           `)
         
