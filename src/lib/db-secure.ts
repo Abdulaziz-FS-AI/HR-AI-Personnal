@@ -328,11 +328,13 @@ export async function getUserRoleRequirements(userId: string, roleId: string) {
       .input('roleId', sql.UniqueIdentifier, roleId)
       .input('userId', sql.UniqueIdentifier, uid)
       .query(`
-        SELECT rr.* 
+        SELECT rr.id, rr.role_id, rr.requirement_type as category, 
+               rr.requirement_value as requirementText, rr.priority as weight,
+               rr.is_required as isRequired, rr.created_at as createdAt
         FROM role_requirements rr
         INNER JOIN roles r ON rr.role_id = r.id
         WHERE rr.role_id = @roleId AND r.user_id = @userId
-        ORDER BY rr.category, rr.weight DESC
+        ORDER BY rr.requirement_type, rr.priority DESC
       `)
     
     return result.recordset
@@ -363,18 +365,27 @@ export async function createUserRoleRequirement(userId: string, requirementData:
     // Create the requirement
     const result = await pool.request()
       .input('roleId', sql.UniqueIdentifier, requirementData.roleId)
-      .input('requirementText', sql.NVarChar, requirementData.requirementText)
-      .input('weight', sql.Int, requirementData.weight)
+      .input('requirementValue', sql.NVarChar, requirementData.requirementText)
+      .input('priority', sql.Int, requirementData.weight)
       .input('isRequired', sql.Bit, requirementData.isRequired)
-      .input('category', sql.NVarChar, requirementData.category)
+      .input('requirementType', sql.NVarChar, requirementData.category)
       .input('userId', sql.UniqueIdentifier, uid)
       .query(`
-        INSERT INTO role_requirements (role_id, requirement_text, weight, is_required, category)
+        INSERT INTO role_requirements (id, role_id, requirement_type, requirement_value, is_required, priority, created_at, updated_at)
         OUTPUT INSERTED.*
-        VALUES (@roleId, @requirementText, @weight, @isRequired, @category)
+        VALUES (NEWID(), @roleId, @requirementType, @requirementValue, @isRequired, @priority, GETDATE(), GETDATE())
       `)
     
-    return result.recordset[0]
+    const record = result.recordset[0]
+    return {
+      id: record.id,
+      roleId: record.role_id,
+      requirementText: record.requirement_value,
+      weight: record.priority,
+      isRequired: record.is_required,
+      category: record.requirement_type,
+      createdAt: record.created_at
+    }
   })
 }
 
