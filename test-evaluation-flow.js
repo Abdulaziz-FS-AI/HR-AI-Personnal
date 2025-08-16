@@ -117,7 +117,7 @@ SKILLS:
         )
         VALUES (
           @id, @evaluationId, @fileName, @blobName, @fileSize,
-          'uploaded', @extractedText, GETDATE(), GETDATE()
+          'pending', @extractedText, GETDATE(), GETDATE()
         )
       `);
     
