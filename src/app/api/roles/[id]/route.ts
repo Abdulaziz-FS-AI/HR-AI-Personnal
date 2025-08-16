@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   )
 }
 
-// DELETE /api/roles/[id] - Delete specific role (soft delete)
+// DELETE /api/roles/[id] - Delete specific role (permanent delete with cascade)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     // Secure user context validation

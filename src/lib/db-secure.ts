@@ -207,15 +207,84 @@ export async function updateUserRole(userId: string, roleId: string, updates: an
 
 export async function deleteUserRole(userId: string, roleId: string) {
   return executeUserScopedQuery(userId, async (pool, uid) => {
-    const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, uid)
-      .input('roleId', sql.UniqueIdentifier, roleId)
-      .query(`
-        UPDATE roles 
-        SET is_active = 0, updated_at = GETUTCDATE()
-        WHERE id = @roleId AND user_id = @userId AND is_active = 1
-      `)
-    return result.rowsAffected[0] > 0
+    // Start transaction for cascading deletes
+    const transaction = new sql.Transaction(pool)
+    
+    try {
+      await transaction.begin()
+      
+      // Verify ownership first
+      const ownership = await transaction.request()
+        .input('userId', sql.UniqueIdentifier, uid)
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`
+          SELECT id FROM roles 
+          WHERE id = @roleId AND user_id = @userId AND is_active = 1
+        `)
+      
+      if (ownership.recordset.length === 0) {
+        await transaction.rollback()
+        return false
+      }
+      
+      // CASCADE DELETE: Delete all related records first
+      
+      // 1. Delete evaluation results first (they reference evaluation_sessions)
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`
+          DELETE er FROM evaluation_results er
+          INNER JOIN evaluation_sessions es ON er.evaluation_id = es.id
+          WHERE es.role_id = @roleId
+        `)
+      
+      // 2. Delete evaluation files
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`
+          DELETE ef FROM evaluation_files ef
+          INNER JOIN evaluation_sessions es ON ef.evaluation_id = es.id
+          WHERE es.role_id = @roleId
+        `)
+      
+      // 3. Delete evaluation sessions
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`DELETE FROM evaluation_sessions WHERE role_id = @roleId`)
+      
+      // 4. Delete role requirements
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`DELETE FROM role_requirements WHERE role_id = @roleId`)
+      
+      // 5. Delete role questions
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`DELETE FROM role_questions WHERE role_id = @roleId`)
+      
+      // 6. Delete role skills
+      await transaction.request()
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`DELETE FROM role_skills WHERE role_id = @roleId`)
+      
+      // 7. Finally delete the role itself
+      const result = await transaction.request()
+        .input('userId', sql.UniqueIdentifier, uid)
+        .input('roleId', sql.UniqueIdentifier, roleId)
+        .query(`DELETE FROM roles WHERE id = @roleId AND user_id = @userId`)
+      
+      await transaction.commit()
+      return result.rowsAffected[0] > 0
+      
+    } catch (error) {
+      try {
+        await transaction.rollback()
+      } catch (rollbackError) {
+        console.error('Transaction rollback failed:', rollbackError)
+      }
+      console.error('Role deletion failed:', error)
+      throw error
+    }
   })
 }
 
