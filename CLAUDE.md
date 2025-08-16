@@ -510,3 +510,50 @@ Dashboard Sidebar:
 3. **Phase 3**: Enhance Results section (comprehensive analytics)
 4. **Phase 4**: Simplify Roles section (remove upload functionality)
 5. **Phase 5**: Add cross-section integrations and workflows
+
+## 🎯 NEW EVALUATION SCORING SYSTEM (DESIGNED)
+
+### 📊 Scoring Formula
+**Base (0-70) + Bonuses (0-30) - Penalties (0-20) = Final Score (0-100)**
+
+### 🔢 Score Components
+
+#### **1. Base Score (0-70 points)**
+- **Skills Match (0-40 points)**: Weighted evaluation of required and desired skills
+- **Questions Score (0-20 points)**: AI assessment of role-specific questions
+- **Relevance (0-10 points)**: Overall resume relevance to role
+
+#### **2. Bonus Points (0-30 points)**
+Optional modules configured by user in plain text:
+- **Education Match**: Boolean (meets/exceeds requirements)
+- **Company Experience**: Boolean (worked at preferred companies)
+- **Project Relevance**: Numeric 1-10 (relevant project experience)
+- **Certifications**: Numeric 1-10 (relevant certifications)
+
+#### **3. Penalties (0-20 points)**
+Optional deductions configured by user:
+- **Job Hopping**: Severity levels (low/medium/high)
+- **Employment Gaps**: Severity levels (low/medium/high)
+- **Other Red Flags**: Custom penalties defined by user
+
+### 🎨 Key Design Principles
+- **Critical but Fair**: 100 is achievable but rare
+- **User-Friendly**: Plain text input, AI handles parsing
+- **Token Optimized**: 40% reduction in prompt size
+- **Holistic Evaluation**: AI considers full context with ±5 adjustment capability
+- **Dynamic Output**: JSON structure adapts to user configuration
+
+### 📝 Role Creation Flow
+1. **Step 1**: Title, Description, Education, Experience (Required)
+2. **Step 2**: Skills Matrix (Optional)
+3. **Step 3**: Custom Questions (Optional)
+4. **Step 4**: Bonus/Penalty Configuration (Optional) ← NEW
+5. **Step 5**: Review & Create
+
+### 📄 Documentation
+Full system design available in `EVALUATION_SYSTEM_DESIGN.md` with:
+- Complete scoring algorithm
+- AI prompt templates
+- Dynamic JSON output examples
+- Token optimization strategies
+- Implementation guidelines

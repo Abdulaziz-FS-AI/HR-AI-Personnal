@@ -65,31 +65,15 @@ export async function POST(request: NextRequest) {
 
     const roleData = validationResult.data
 
-    // Validate experience years relationship
-    if (roleData.minExperienceYears && roleData.maxExperienceYears) {
-      if (roleData.minExperienceYears > roleData.maxExperienceYears) {
-        return NextResponse.json(
-          { 
-            success: false, 
-            message: "Minimum experience cannot be greater than maximum experience"
-          },
-          { status: 400 }
-        )
-      }
-    }
-
     // Create role with secure user-scoped function
     const newRole = await createUserRole(userContext.userId, {
-      ...roleData,
-      description: roleData.description || null,
+      title: roleData.title,
+      description: roleData.description,
       responsibilities: roleData.responsibilities || null,
-      department: roleData.department || null,
-      location: roleData.location || null,
-      employmentType: roleData.employmentType || null,
-      seniorityLevel: roleData.seniorityLevel || null,
-      minExperienceYears: roleData.minExperienceYears || null,
-      maxExperienceYears: roleData.maxExperienceYears || null,
-      educationRequirements: roleData.educationRequirements || null
+      educationRequirements: roleData.educationRequirements,
+      experienceRequirements: roleData.experienceRequirements,
+      bonusConfig: roleData.bonusConfig || null,
+      penaltyConfig: roleData.penaltyConfig || null
     })
     
     if (!newRole) {

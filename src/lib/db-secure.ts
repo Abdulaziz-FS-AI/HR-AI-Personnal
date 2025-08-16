@@ -68,26 +68,25 @@ export async function createUserRole(userId: string, roleData: any) {
       const roleResult = await roleRequest
         .input('userId', sql.UniqueIdentifier, uid)
         .input('title', sql.NVarChar, roleData.title)
-        .input('description', sql.NText, roleData.description || null)
+        .input('description', sql.NText, roleData.description)
         .input('responsibilities', sql.NText, roleData.responsibilities || null)
-        .input('department', sql.NVarChar, roleData.department || null)
-        .input('location', sql.NVarChar, roleData.location || null)
-        .input('employmentType', sql.NVarChar, roleData.employmentType || 'full-time')
-        .input('seniorityLevel', sql.NVarChar, roleData.seniorityLevel || 'mid')
-        .input('minExperienceYears', sql.Int, roleData.minExperienceYears || null)
-        .input('maxExperienceYears', sql.Int, roleData.maxExperienceYears || null)
-        .input('educationRequirements', sql.NText, roleData.educationRequirements || null)
+        .input('educationRequirements', sql.NText, roleData.educationRequirements)
+        .input('experienceRequirements', sql.NText, roleData.experienceRequirements)
+        .input('bonusConfig', sql.NText, roleData.bonusConfig ? JSON.stringify(roleData.bonusConfig) : null)
+        .input('penaltyConfig', sql.NText, roleData.penaltyConfig ? JSON.stringify(roleData.penaltyConfig) : null)
         .query(`
           INSERT INTO roles (
-            user_id, title, description, responsibilities, department, location,
-            employment_type, seniority_level, min_experience_years, max_experience_years,
-            education_requirements, is_active, created_at, updated_at
+            user_id, title, description, responsibilities, 
+            education_requirements, experience_requirements,
+            bonus_config, penalty_config,
+            is_active, created_at, updated_at
           )
           OUTPUT INSERTED.*
           VALUES (
-            @userId, @title, @description, @responsibilities, @department, @location,
-            @employmentType, @seniorityLevel, @minExperienceYears, @maxExperienceYears,
-            @educationRequirements, 1, GETDATE(), GETDATE()
+            @userId, @title, @description, @responsibilities,
+            @educationRequirements, @experienceRequirements,
+            @bonusConfig, @penaltyConfig,
+            1, GETDATE(), GETDATE()
           )
         `)
       

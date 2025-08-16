@@ -1,6 +1,44 @@
 import { z } from "zod"
 
-// Base role validation schema
+// Bonus configuration schemas
+export const bonusConfigSchema = z.object({
+  preferredEducation: z.object({
+    enabled: z.boolean(),
+    specificUniversities: z.array(z.string()).optional(),
+    universityCategories: z.array(z.string()).optional()
+  }).optional(),
+  
+  preferredCompanies: z.object({
+    enabled: z.boolean(),
+    specificCompanies: z.array(z.string()).optional(),
+    companyCategories: z.array(z.string()).optional()
+  }).optional(),
+  
+  relatedProjects: z.object({
+    enabled: z.boolean(),
+    description: z.string().max(1000, "Project description cannot exceed 1000 characters")
+  }).optional(),
+  
+  relatedCertifications: z.object({
+    enabled: z.boolean(),
+    certificationsList: z.array(z.string())
+  }).optional()
+}).optional()
+
+// Penalty configuration schemas
+export const penaltyConfigSchema = z.object({
+  jobHopping: z.object({
+    enabled: z.boolean(),
+    sensitivity: z.enum(['strict', 'moderate', 'lenient'])
+  }).optional(),
+  
+  employmentGaps: z.object({
+    enabled: z.boolean(),
+    threshold: z.enum(['6months', '1year', '2years'])
+  }).optional()
+}).optional()
+
+// Base role validation schema (REMOVED unused fields: department, location, employment_type, seniority_level)
 export const roleSchema = z.object({
   title: z.string()
     .min(2, "Title must be at least 2 characters")
@@ -8,71 +46,41 @@ export const roleSchema = z.object({
   
   description: z.string()
     .min(10, "Description must be at least 10 characters")
-    .max(2500, "Description cannot exceed 2500 characters")
-    .optional(),
+    .max(2500, "Description cannot exceed 2500 characters"),
   
   responsibilities: z.string()
     .max(2500, "Responsibilities cannot exceed 2500 characters")
     .optional(),
   
-  department: z.string()
-    .max(100, "Department name cannot exceed 100 characters")
-    .optional(),
-  
-  location: z.string()
-    .max(100, "Location cannot exceed 100 characters")
-    .optional(),
-  
-  employmentType: z.enum([
-    "full-time",
-    "part-time", 
-    "contract",
-    "freelance",
-    "internship"
-  ], {
-    errorMap: () => ({ message: "Please select a valid employment type" })
-  }).optional(),
-  
-  seniorityLevel: z.enum([
-    "entry",
-    "junior",
-    "mid",
-    "senior",
-    "lead",
-    "executive"
-  ], {
-    errorMap: () => ({ message: "Please select a valid seniority level" })
-  }).optional(),
-  
-  minExperienceYears: z.number()
-    .min(0, "Experience cannot be negative")
-    .max(50, "Experience cannot exceed 50 years")
-    .optional(),
-  
-  maxExperienceYears: z.number()
-    .min(0, "Experience cannot be negative")
-    .max(50, "Experience cannot exceed 50 years")
-    .optional(),
+  // REMOVED: department, location, employmentType, seniorityLevel, minExperienceYears, maxExperienceYears
   
   educationRequirements: z.string()
-    .max(500, "Education requirements cannot exceed 500 characters")
-    .optional(),
-}).refine((data) => {
-  // Custom validation: min experience should not exceed max experience
-  if (data.minExperienceYears && data.maxExperienceYears) {
-    return data.minExperienceYears <= data.maxExperienceYears
-  }
-  return true
-}, {
-  message: "Minimum experience cannot exceed maximum experience",
-  path: ["maxExperienceYears"]
+    .min(1, "Education requirements are required")
+    .max(500, "Education requirements cannot exceed 500 characters"),
+    
+  experienceRequirements: z.string()
+    .min(1, "Experience requirements are required")
+    .max(500, "Experience requirements cannot exceed 500 characters"),
+    
+  // NEW: Bonus and penalty configurations
+  bonusConfig: bonusConfigSchema,
+  penaltyConfig: penaltyConfigSchema
 })
 
-// Create role schema (for new roles)
+// Create role schema (for new roles) 
 export const createRoleSchema = roleSchema.extend({
   title: z.string()
     .min(2, "Title is required and must be at least 2 characters")
-    .max(120, "Title cannot exceed 120 characters")
+    .max(120, "Title cannot exceed 120 characters"),
+  description: z.string()
+    .min(10, "Description is required and must be at least 10 characters")
+    .max(2500, "Description cannot exceed 2500 characters"),
+  educationRequirements: z.string()
+    .min(1, "Education requirements are required")
+    .max(500, "Education requirements cannot exceed 500 characters"),
+  experienceRequirements: z.string()
+    .min(1, "Experience requirements are required")
+    .max(500, "Experience requirements cannot exceed 500 characters")
 })
 
 // Update role schema (all fields optional except validation rules)
@@ -155,13 +163,29 @@ export const jobDetailsStepSchema = z.object({
     .max(120, "Title cannot exceed 120 characters"),
   
   description: z.string()
-    .min(10, "Description must be at least 10 characters")
-    .max(2500, "Description cannot exceed 2500 characters")
-    .optional(),
+    .min(10, "Description is required and must be at least 10 characters")
+    .max(2500, "Description cannot exceed 2500 characters"),
   
   responsibilities: z.string()
     .max(2500, "Responsibilities cannot exceed 2500 characters")
     .optional(),
+})
+
+// Requirements step schema (NEW - replaces experience/education individual fields)
+export const requirementsStepSchema = z.object({
+  educationRequirements: z.string()
+    .min(1, "Education requirements are required")
+    .max(500, "Education requirements cannot exceed 500 characters"),
+    
+  experienceRequirements: z.string()
+    .min(1, "Experience requirements are required")
+    .max(500, "Experience requirements cannot exceed 500 characters")
+})
+
+// Bonus/Penalty step schema (NEW)
+export const bonusPenaltyStepSchema = z.object({
+  bonusConfig: bonusConfigSchema,
+  penaltyConfig: penaltyConfigSchema
 })
 
 // Skill schema for form steps (with enforced limits)
@@ -246,23 +270,35 @@ export const questionCategories = [
   "Other"
 ] as const
 
-// Employment type options
-export const employmentTypes = [
-  { value: "full-time", label: "Full-time" },
-  { value: "part-time", label: "Part-time" },
-  { value: "contract", label: "Contract" },
-  { value: "freelance", label: "Freelance" },
-  { value: "internship", label: "Internship" }
+// University categories for bonus configuration
+export const universityCategories = [
+  "Top League (Ivy League/Oxbridge)",
+  "Top 50 Global Universities", 
+  "Top 100 Global Universities",
+  "Regional Top Universities"
 ] as const
 
-// Seniority level options
-export const seniorityLevels = [
-  { value: "entry", label: "Entry Level" },
-  { value: "junior", label: "Junior" },
-  { value: "mid", label: "Mid Level" },
-  { value: "senior", label: "Senior" },
-  { value: "lead", label: "Lead" },
-  { value: "executive", label: "Executive" }
+// Company categories for bonus configuration
+export const companyCategories = [
+  "FAANG/Top Tech Companies",
+  "Unicorns ($1B+ startups)",
+  "Fortune 500",
+  "Industry Leaders",
+  "Direct Competitors"
+] as const
+
+// Job hopping sensitivity levels
+export const jobHoppingSensitivity = [
+  { value: "strict", label: "Strict (>20% short tenures)" },
+  { value: "moderate", label: "Moderate (>30% short tenures)" },
+  { value: "lenient", label: "Lenient (>50% short tenures)" }
+] as const
+
+// Employment gap thresholds
+export const employmentGapThresholds = [
+  { value: "6months", label: "6 months" },
+  { value: "1year", label: "1 year" },
+  { value: "2years", label: "2 years" }
 ] as const
 
 // Type exports for TypeScript
@@ -270,6 +306,10 @@ export type Role = z.infer<typeof roleSchema>
 export type CreateRole = z.infer<typeof createRoleSchema>
 export type UpdateRole = z.infer<typeof updateRoleSchema>
 export type JobDetailsStep = z.infer<typeof jobDetailsStepSchema>
+export type RequirementsStep = z.infer<typeof requirementsStepSchema>
+export type BonusPenaltyStep = z.infer<typeof bonusPenaltyStepSchema>
+export type BonusConfig = z.infer<typeof bonusConfigSchema>
+export type PenaltyConfig = z.infer<typeof penaltyConfigSchema>
 export type Skill = z.infer<typeof skillSchema>
 export type CreateSkill = z.infer<typeof createSkillSchema>
 export type Question = z.infer<typeof questionSchema>
@@ -277,5 +317,7 @@ export type CreateQuestion = z.infer<typeof createQuestionSchema>
 export type CompleteRole = z.infer<typeof completeRoleSchema>
 export type SkillCategory = typeof skillCategories[number]
 export type QuestionCategory = typeof questionCategories[number]
-export type EmploymentType = typeof employmentTypes[number]["value"]
-export type SeniorityLevel = typeof seniorityLevels[number]["value"]
+export type UniversityCategory = typeof universityCategories[number]
+export type CompanyCategory = typeof companyCategories[number]
+export type JobHoppingSensitivity = typeof jobHoppingSensitivity[number]["value"]
+export type EmploymentGapThreshold = typeof employmentGapThresholds[number]["value"]
