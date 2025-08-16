@@ -124,7 +124,7 @@ export function RolesList({ initialRoles }: RolesListProps) {
             Create your first job role to start screening candidates with AI-powered analysis.
             Define skills, requirements, and custom questions for better candidate matching.
           </p>
-          <Link href="/roles/create">
+          <Link href="/dashboard/roles/create">
             <Button className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               Create Your First Role
@@ -142,7 +142,7 @@ export function RolesList({ initialRoles }: RolesListProps) {
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-semibold">Your Job Roles ({roles.length})</h2>
         </div>
-        <Link href="/roles/create">
+        <Link href="/dashboard/roles/create">
           <Button className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Create New Role
