@@ -256,7 +256,7 @@ export function RoleCreationWizard({
       localStorage.removeItem('roleDraft')
       
       toast.success("Role created successfully!")
-      router.push('/roles')
+      router.push('/dashboard/roles')
 
     } catch (error) {
       console.error('Error creating role:', error)
@@ -264,7 +264,7 @@ export function RoleCreationWizard({
       // If role was created but sub-items failed, still navigate
       if (createdRoleId) {
         toast.warning('Role created but some details may be missing. You can edit them later.')
-        router.push('/roles')
+        router.push('/dashboard/roles')
       } else {
         toast.error(error instanceof Error ? error.message : 'Failed to create role')
       }
@@ -296,7 +296,7 @@ export function RoleCreationWizard({
       // to handle additions, deletions, and updates
       
       toast.success("Role updated successfully!")
-      router.push('/roles')
+      router.push('/dashboard/roles')
 
     } catch (error) {
       console.error('Error updating role:', error)
