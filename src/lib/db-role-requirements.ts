@@ -25,28 +25,28 @@ export async function createRoleRequirement(data: CreateRoleRequirement): Promis
     const pool = await getDbConnection()
     
     const request = pool.request()
-    request.input('roleId', sql.NVarChar(50), roleId)
-    request.input('requirementText', sql.NVarChar(sql.MAX), requirementText)
-    request.input('weight', sql.Int, weight)
+    request.input('roleId', sql.UniqueIdentifier, roleId)
+    request.input('requirementType', sql.NVarChar(50), category || 'other')
+    request.input('requirementValue', sql.NVarChar(sql.MAX), requirementText)
     request.input('isRequired', sql.Bit, isRequired)
-    request.input('category', sql.NVarChar(50), category)
+    request.input('priority', sql.Int, weight)
     
     const result = await request.query(`
-      INSERT INTO role_requirements (roleId, requirementText, weight, isRequired, category, createdAt)
+      INSERT INTO role_requirements (id, role_id, requirement_type, requirement_value, is_required, priority, created_at, updated_at)
       OUTPUT INSERTED.*
-      VALUES (@roleId, @requirementText, @weight, @isRequired, @category, GETDATE())
+      VALUES (NEWID(), @roleId, @requirementType, @requirementValue, @isRequired, @priority, GETDATE(), GETDATE())
     `)
     
     if (result.recordset.length > 0) {
       const record = result.recordset[0]
       return {
         id: record.id,
-        roleId: record.roleId,
-        requirementText: record.requirementText,
-        weight: record.weight,
-        isRequired: record.isRequired,
-        category: record.category,
-        createdAt: record.createdAt
+        roleId: record.role_id,
+        requirementText: record.requirement_value,
+        weight: record.priority,
+        isRequired: record.is_required,
+        category: (record.requirement_type || 'other') as 'education' | 'experience' | 'other',
+        createdAt: record.created_at
       }
     }
     
@@ -61,23 +61,23 @@ export async function getRoleRequirements(roleId: string): Promise<RoleRequireme
   try {
     const pool = await getDbConnection()
     const request = pool.request()
-    request.input('roleId', sql.NVarChar(50), roleId)
+    request.input('roleId', sql.UniqueIdentifier, roleId)
     
     const result = await request.query(`
-      SELECT id, roleId, requirementText, weight, isRequired, category, createdAt
+      SELECT id, role_id, requirement_type, requirement_value, is_required, priority, created_at
       FROM role_requirements
-      WHERE roleId = @roleId
-      ORDER BY category, weight DESC, createdAt ASC
+      WHERE role_id = @roleId
+      ORDER BY requirement_type, priority DESC, created_at ASC
     `)
     
     return result.recordset.map(record => ({
       id: record.id,
-      roleId: record.roleId,
-      requirementText: record.requirementText,
-      weight: record.weight,
-      isRequired: record.isRequired,
-      category: record.category,
-      createdAt: record.createdAt
+      roleId: record.role_id,
+      requirementText: record.requirement_value,
+      weight: record.priority,
+      isRequired: record.is_required,
+      category: (record.requirement_type || 'other') as 'education' | 'experience' | 'other',
+      createdAt: record.created_at
     }))
   } catch (error) {
     console.error('Error fetching role requirements:', error)
@@ -92,25 +92,29 @@ export async function updateRoleRequirement(
   try {
     const pool = await getDbConnection()
     const request = pool.request()
-    request.input('id', sql.NVarChar(50), id)
+    request.input('id', sql.UniqueIdentifier, id)
     
     const updateFields: string[] = []
-    const allowedFields: (keyof typeof data)[] = ['requirementText', 'weight', 'isRequired', 'category']
     
-    allowedFields.forEach(field => {
-      if (data[field] !== undefined) {
-        updateFields.push(`${field} = @${field}`)
-        if (field === 'requirementText') {
-          request.input(field, sql.NVarChar(sql.MAX), data[field])
-        } else if (field === 'weight') {
-          request.input(field, sql.Int, data[field])
-        } else if (field === 'isRequired') {
-          request.input(field, sql.Bit, data[field])
-        } else if (field === 'category') {
-          request.input(field, sql.NVarChar(50), data[field])
-        }
-      }
-    })
+    if (data.requirementText !== undefined) {
+      updateFields.push('requirement_value = @requirementValue')
+      request.input('requirementValue', sql.NVarChar(sql.MAX), data.requirementText)
+    }
+    
+    if (data.weight !== undefined) {
+      updateFields.push('priority = @priority')
+      request.input('priority', sql.Int, data.weight)
+    }
+    
+    if (data.isRequired !== undefined) {
+      updateFields.push('is_required = @isRequired')
+      request.input('isRequired', sql.Bit, data.isRequired)
+    }
+    
+    if (data.category !== undefined) {
+      updateFields.push('requirement_type = @requirementType')
+      request.input('requirementType', sql.NVarChar(50), data.category)
+    }
     
     if (updateFields.length === 0) {
       throw new Error('No valid fields to update')
@@ -118,7 +122,7 @@ export async function updateRoleRequirement(
     
     const result = await request.query(`
       UPDATE role_requirements
-      SET ${updateFields.join(', ')}, updatedAt = GETDATE()
+      SET ${updateFields.join(', ')}, updated_at = GETDATE()
       OUTPUT INSERTED.*
       WHERE id = @id
     `)
@@ -127,12 +131,12 @@ export async function updateRoleRequirement(
       const record = result.recordset[0]
       return {
         id: record.id,
-        roleId: record.roleId,
-        requirementText: record.requirementText,
-        weight: record.weight,
-        isRequired: record.isRequired,
-        category: record.category,
-        createdAt: record.createdAt
+        roleId: record.role_id,
+        requirementText: record.requirement_value,
+        weight: record.priority,
+        isRequired: record.is_required,
+        category: (record.requirement_type || 'other') as 'education' | 'experience' | 'other',
+        createdAt: record.created_at
       }
     }
     
@@ -147,7 +151,7 @@ export async function deleteRoleRequirement(id: string): Promise<boolean> {
   try {
     const pool = await getDbConnection()
     const request = pool.request()
-    request.input('id', sql.NVarChar(50), id)
+    request.input('id', sql.UniqueIdentifier, id)
     
     const result = await request.query(`
       DELETE FROM role_requirements
@@ -165,11 +169,11 @@ export async function deleteRoleRequirementsByRoleId(roleId: string): Promise<bo
   try {
     const pool = await getDbConnection()
     const request = pool.request()
-    request.input('roleId', sql.NVarChar(50), roleId)
+    request.input('roleId', sql.UniqueIdentifier, roleId)
     
     const result = await request.query(`
       DELETE FROM role_requirements
-      WHERE roleId = @roleId
+      WHERE role_id = @roleId
     `)
     
     return result.rowsAffected[0] >= 0 // Allow 0 if no requirements exist
