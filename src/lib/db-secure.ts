@@ -17,23 +17,15 @@ async function executeUserScopedQuery<T>(
     throw new Error('User ID is required for all database operations')
   }
   
-  let pool: sql.ConnectionPool | null = null
   try {
-    pool = await getDbConnection()
+    const pool = await getDbConnection()
     const result = await queryBuilder(pool, userId)
     return result
   } catch (error) {
     console.error('Database query error:', error)
     throw error
-  } finally {
-    if (pool) {
-      try {
-        await pool.close()
-      } catch (closeError) {
-        console.error('Error closing database connection:', closeError)
-      }
-    }
   }
+  // Don't close pool - let it be reused for serverless optimization
 }
 
 // ROLES - User-scoped operations
