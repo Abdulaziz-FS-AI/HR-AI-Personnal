@@ -425,7 +425,7 @@ export function RoleCreationWizard({
             onClick={() => {
               if (confirm('Are you sure you want to cancel? Any unsaved changes will be lost.')) {
                 localStorage.removeItem('roleDraft')
-                router.push('/roles')
+                router.push('/dashboard/roles')
               }
             }}
             className="absolute top-0 right-0 text-gray-500 hover:text-gray-700"
