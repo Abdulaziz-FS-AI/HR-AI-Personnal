@@ -31,25 +31,25 @@ export default async function DashboardLayout({
                   Dashboard
                 </Link>
                 <Link
-                  href="/roles"
+                  href="/dashboard/roles"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Job Roles
                 </Link>
                 <Link
-                  href="/evaluations"
+                  href="/dashboard/evaluations"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Evaluations
                 </Link>
                 <Link
-                  href="/analytics"
+                  href="/dashboard/analytics"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Analytics
                 </Link>
                 <Link
-                  href="/settings"
+                  href="/dashboard/settings"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                 >
                   Settings

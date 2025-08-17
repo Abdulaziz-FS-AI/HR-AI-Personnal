@@ -233,14 +233,14 @@ export function RolesList({ initialRoles }: RolesListProps) {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-3 border-t">
-                  <Link href={`/roles/${role.id}`} className="flex-1">
+                  <Link href={`/dashboard/roles/${role.id}`} className="flex-1">
                     <Button variant="outline" size="sm" className="w-full">
                       View Details
                     </Button>
                   </Link>
-                  <Link href={`/roles/${role.id}/screen`} className="flex-1">
+                  <Link href={`/dashboard/evaluations/create?roleId=${role.id}`} className="flex-1">
                     <Button size="sm" className="w-full">
-                      Screen Resumes
+                      Start Evaluation
                     </Button>
                   </Link>
                 </div>
