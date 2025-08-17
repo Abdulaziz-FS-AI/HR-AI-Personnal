@@ -12,19 +12,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, ArrowLeft, Star, AlertTriangle, Plus, Minus, SkipForward } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ArrowRight, ArrowLeft, Star, AlertTriangle, Plus, Minus, SkipForward, X } from "lucide-react"
 import { bonusPenaltyStepSchema, type BonusPenaltyStep, universityCategories, companyCategories, jobHoppingSensitivity, employmentGapThresholds } from "@/lib/validations/role"
 
 interface BonusPenaltyConfigProps {
   initialData?: BonusPenaltyStep
   onSubmit: (data: BonusPenaltyStep) => void
+  onNext: () => void
   onPrevious: () => void
   onSkip: () => void
+  onExit?: () => void
   isLoading?: boolean
 }
 
-export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, isLoading }: BonusPenaltyConfigProps) {
+export function BonusPenaltyConfig({ initialData, onSubmit, onNext, onPrevious, onSkip, onExit, isLoading }: BonusPenaltyConfigProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showExitDialog, setShowExitDialog] = useState(false)
 
   const form = useForm<BonusPenaltyStep>({
     resolver: zodResolver(bonusPenaltyStepSchema),
@@ -81,9 +85,20 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
     setIsSubmitting(true)
     try {
       onSubmit(data)
+      onNext() // Navigate to next step after successful submission
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleExit = () => {
+    if (onExit) {
+      onExit()
+    } else {
+      // Fallback to skip if no exit handler provided
+      onSkip()
+    }
+    setShowExitDialog(false)
   }
 
   const watchBonusEducation = form.watch("bonusConfig.preferredEducation.enabled")
@@ -95,17 +110,63 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
 
   const hasAnyConfiguration = watchBonusEducation || watchBonusCompanies || watchBonusProjects || watchBonusCerts || watchPenaltyJobHopping || watchPenaltyGaps
 
+  // Check for form errors
+  const formErrors = form.formState.errors
+  const hasErrors = Object.keys(formErrors).length > 0
+
   return (
-    <Card className="w-full max-w-6xl mx-auto">
-      <CardHeader className="text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Star className="h-6 w-6 text-yellow-600" />
-          <CardTitle className="text-2xl font-bold">Evaluation Enhancements</CardTitle>
-          <Badge variant="secondary" className="ml-2">Optional</Badge>
-        </div>
-        <p className="text-muted-foreground">
-          Step 4 of 5: Configure bonus points and risk factors (Advanced AI Scoring)
-        </p>
+    <>
+      <Card className="w-full max-w-6xl mx-auto">
+        <CardHeader className="text-center relative">
+          {/* Exit Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowExitDialog(true)}
+            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+          >
+            <X className="h-4 w-4 mr-1" />
+            Exit
+          </Button>
+          
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Star className="h-6 w-6 text-yellow-600" />
+            <CardTitle className="text-2xl font-bold">Evaluation Enhancements</CardTitle>
+            <Badge variant="secondary" className="ml-2">Optional</Badge>
+          </div>
+          <p className="text-muted-foreground">
+            Step 4 of 6: Configure bonus points and risk factors (Advanced AI Scoring)
+          </p>
+        
+        {/* Error Summary */}
+        {hasErrors && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 text-red-800 font-medium mb-2">
+              <AlertTriangle className="h-4 w-4" />
+              Please complete the following:
+            </div>
+            <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
+              {formErrors.bonusConfig?.preferredEducation && (
+                <li>{formErrors.bonusConfig.preferredEducation.message}</li>
+              )}
+              {formErrors.bonusConfig?.preferredCompanies && (
+                <li>{formErrors.bonusConfig.preferredCompanies.message}</li>
+              )}
+              {formErrors.bonusConfig?.relatedProjects && (
+                <li>{formErrors.bonusConfig.relatedProjects.message}</li>
+              )}
+              {formErrors.bonusConfig?.relatedCertifications && (
+                <li>{formErrors.bonusConfig.relatedCertifications.message}</li>
+              )}
+              {formErrors.penaltyConfig?.jobHopping && (
+                <li>{formErrors.penaltyConfig.jobHopping.message}</li>
+              )}
+              {formErrors.penaltyConfig?.employmentGaps && (
+                <li>{formErrors.penaltyConfig.employmentGaps.message}</li>
+              )}
+            </ul>
+          </div>
+        )}
       </CardHeader>
       
       <CardContent>
@@ -121,7 +182,13 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
               </div>
 
               {/* Preferred Education */}
-              <div className="border rounded-lg p-4 space-y-4">
+              <div className={`border rounded-lg p-4 space-y-4 ${
+                watchBonusEducation && formErrors.bonusConfig?.preferredEducation 
+                  ? 'border-red-300 bg-red-50' 
+                  : watchBonusEducation 
+                  ? 'border-blue-300 bg-blue-50' 
+                  : 'border-gray-200'
+              }`}>
                 <FormField
                   control={form.control}
                   name="bonusConfig.preferredEducation.enabled"
@@ -217,7 +284,13 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
               </div>
 
               {/* Preferred Companies */}
-              <div className="border rounded-lg p-4 space-y-4">
+              <div className={`border rounded-lg p-4 space-y-4 ${
+                watchBonusCompanies && formErrors.bonusConfig?.preferredCompanies 
+                  ? 'border-red-300 bg-red-50' 
+                  : watchBonusCompanies 
+                  ? 'border-blue-300 bg-blue-50' 
+                  : 'border-gray-200'
+              }`}>
                 <FormField
                   control={form.control}
                   name="bonusConfig.preferredCompanies.enabled"
@@ -313,7 +386,13 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
               </div>
 
               {/* Related Projects */}
-              <div className="border rounded-lg p-4 space-y-4">
+              <div className={`border rounded-lg p-4 space-y-4 ${
+                watchBonusProjects && formErrors.bonusConfig?.relatedProjects 
+                  ? 'border-red-300 bg-red-50' 
+                  : watchBonusProjects 
+                  ? 'border-blue-300 bg-blue-50' 
+                  : 'border-gray-200'
+              }`}>
                 <FormField
                   control={form.control}
                   name="bonusConfig.relatedProjects.enabled"
@@ -361,7 +440,13 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
               </div>
 
               {/* Valuable Certifications */}
-              <div className="border rounded-lg p-4 space-y-4">
+              <div className={`border rounded-lg p-4 space-y-4 ${
+                watchBonusCerts && formErrors.bonusConfig?.relatedCertifications 
+                  ? 'border-red-300 bg-red-50' 
+                  : watchBonusCerts 
+                  ? 'border-blue-300 bg-blue-50' 
+                  : 'border-gray-200'
+              }`}>
                 <FormField
                   control={form.control}
                   name="bonusConfig.relatedCertifications.enabled"
@@ -428,7 +513,13 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
               </div>
 
               {/* Job Stability Check */}
-              <div className="border border-red-200 rounded-lg p-4 space-y-4">
+              <div className={`border rounded-lg p-4 space-y-4 ${
+                watchPenaltyJobHopping && formErrors.penaltyConfig?.jobHopping 
+                  ? 'border-red-300 bg-red-50' 
+                  : watchPenaltyJobHopping 
+                  ? 'border-orange-300 bg-orange-50' 
+                  : 'border-red-200'
+              }`}>
                 <FormField
                   control={form.control}
                   name="penaltyConfig.jobHopping.enabled"
@@ -483,7 +574,13 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
               </div>
 
               {/* Employment Gap Check */}
-              <div className="border border-red-200 rounded-lg p-4 space-y-4">
+              <div className={`border rounded-lg p-4 space-y-4 ${
+                watchPenaltyGaps && formErrors.penaltyConfig?.employmentGaps 
+                  ? 'border-red-300 bg-red-50' 
+                  : watchPenaltyGaps 
+                  ? 'border-orange-300 bg-orange-50' 
+                  : 'border-red-200'
+              }`}>
                 <FormField
                   control={form.control}
                   name="penaltyConfig.employmentGaps.enabled"
@@ -598,5 +695,32 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
         </Form>
       </CardContent>
     </Card>
+
+    {/* Exit Confirmation Dialog */}
+    <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Are you sure you want to exit?</DialogTitle>
+          <DialogDescription>
+            Any unsaved changes in this step will be lost. You can always return to configure bonus and penalty settings later.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button 
+            variant="outline" 
+            onClick={() => setShowExitDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={handleExit}
+          >
+            Exit Step
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

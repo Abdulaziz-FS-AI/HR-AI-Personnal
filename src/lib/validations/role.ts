@@ -1,41 +1,75 @@
 import { z } from "zod"
 
-// Bonus configuration schemas
+// Bonus configuration schemas with conditional validation
 export const bonusConfigSchema = z.object({
   preferredEducation: z.object({
     enabled: z.boolean(),
     specificUniversities: z.array(z.string()).optional(),
     universityCategories: z.array(z.string()).optional()
-  }).optional(),
+  }).optional().refine((data) => {
+    if (!data || !data.enabled) return true
+    const hasUniversities = data.specificUniversities && data.specificUniversities.length > 0 && data.specificUniversities.some(u => u.trim() !== '')
+    const hasCategories = data.universityCategories && data.universityCategories.length > 0
+    return hasUniversities || hasCategories
+  }, {
+    message: "Please specify either universities or categories when education bonus is enabled"
+  }),
   
   preferredCompanies: z.object({
     enabled: z.boolean(),
     specificCompanies: z.array(z.string()).optional(),
     companyCategories: z.array(z.string()).optional()
-  }).optional(),
+  }).optional().refine((data) => {
+    if (!data || !data.enabled) return true
+    const hasCompanies = data.specificCompanies && data.specificCompanies.length > 0 && data.specificCompanies.some(c => c.trim() !== '')
+    const hasCategories = data.companyCategories && data.companyCategories.length > 0
+    return hasCompanies || hasCategories
+  }, {
+    message: "Please specify either companies or categories when company bonus is enabled"
+  }),
   
   relatedProjects: z.object({
     enabled: z.boolean(),
     description: z.string().max(1000, "Project description cannot exceed 1000 characters")
-  }).optional(),
+  }).optional().refine((data) => {
+    if (!data || !data.enabled) return true
+    return data.description && data.description.trim().length >= 10
+  }, {
+    message: "Please provide a project description (minimum 10 characters) when project bonus is enabled"
+  }),
   
   relatedCertifications: z.object({
     enabled: z.boolean(),
     certificationsList: z.array(z.string())
-  }).optional()
+  }).optional().refine((data) => {
+    if (!data || !data.enabled) return true
+    return data.certificationsList && data.certificationsList.length > 0 && data.certificationsList.some(c => c.trim() !== '')
+  }, {
+    message: "Please add at least one certification when certification bonus is enabled"
+  })
 }).optional()
 
-// Penalty configuration schemas
+// Penalty configuration schemas with conditional validation
 export const penaltyConfigSchema = z.object({
   jobHopping: z.object({
     enabled: z.boolean(),
     sensitivity: z.enum(['strict', 'moderate', 'lenient'])
-  }).optional(),
+  }).optional().refine((data) => {
+    if (!data || !data.enabled) return true
+    return data.sensitivity && ['strict', 'moderate', 'lenient'].includes(data.sensitivity)
+  }, {
+    message: "Please select a sensitivity level when job stability check is enabled"
+  }),
   
   employmentGaps: z.object({
     enabled: z.boolean(),
     threshold: z.enum(['6months', '1year', '2years'])
-  }).optional()
+  }).optional().refine((data) => {
+    if (!data || !data.enabled) return true
+    return data.threshold && ['6months', '1year', '2years'].includes(data.threshold)
+  }, {
+    message: "Please select a threshold when employment gap check is enabled"
+  })
 }).optional()
 
 // Base role validation schema (REMOVED unused fields: department, location, employment_type, seniority_level)

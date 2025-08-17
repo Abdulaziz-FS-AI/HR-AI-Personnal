@@ -388,6 +388,10 @@ export function RoleCreationWizard({
               setRoleData(prev => ({ ...prev, bonusPenalty: null }))
               nextStep()
             }}
+            onExit={() => {
+              localStorage.removeItem('roleDraft')
+              router.push('/dashboard/roles')
+            }}
             isLoading={isLoading}
           />
         )
