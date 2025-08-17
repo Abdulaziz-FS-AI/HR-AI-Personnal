@@ -1,5 +1,32 @@
 import { z } from "zod"
 
+// Enhanced Requirements Schema with Optional Requirements Support (MOVED UP)
+export const educationRequirementSchema = z.object({
+  hasRequirements: z.boolean(),
+  requirements: z.string().max(500, "Education requirements cannot exceed 500 characters")
+}).refine((data) => {
+  if (data.hasRequirements) {
+    return data.requirements.trim().length >= 10
+  }
+  return true
+}, {
+  message: "Please provide education requirements (minimum 10 characters) or disable education requirements",
+  path: ["requirements"]
+})
+
+export const experienceRequirementSchema = z.object({
+  hasRequirements: z.boolean(),
+  requirements: z.string().max(500, "Experience requirements cannot exceed 500 characters")
+}).refine((data) => {
+  if (data.hasRequirements) {
+    return data.requirements.trim().length >= 10
+  }
+  return true
+}, {
+  message: "Please provide experience requirements (minimum 10 characters) or disable experience requirements",
+  path: ["requirements"]
+})
+
 // Bonus configuration schemas with conditional validation
 export const bonusConfigSchema = z.object({
   preferredEducation: z.object({
@@ -194,33 +221,6 @@ export const jobDetailsStepSchema = z.object({
   responsibilities: z.string()
     .max(2500, "Responsibilities cannot exceed 2500 characters")
     .optional(),
-})
-
-// Enhanced Requirements Schema with Optional Requirements Support
-export const educationRequirementSchema = z.object({
-  hasRequirements: z.boolean(),
-  requirements: z.string().max(500, "Education requirements cannot exceed 500 characters")
-}).refine((data) => {
-  if (data.hasRequirements) {
-    return data.requirements.trim().length >= 10
-  }
-  return true
-}, {
-  message: "Please provide education requirements (minimum 10 characters) or disable education requirements",
-  path: ["requirements"]
-})
-
-export const experienceRequirementSchema = z.object({
-  hasRequirements: z.boolean(),
-  requirements: z.string().max(500, "Experience requirements cannot exceed 500 characters")
-}).refine((data) => {
-  if (data.hasRequirements) {
-    return data.requirements.trim().length >= 10
-  }
-  return true
-}, {
-  message: "Please provide experience requirements (minimum 10 characters) or disable experience requirements",
-  path: ["requirements"]
 })
 
 // Requirements step schema (ENHANCED - flexible education/experience handling)
