@@ -65,13 +65,22 @@ export async function POST(request: NextRequest) {
 
     const roleData = validationResult.data
 
+    // Extract requirements text from structured format
+    const educationRequirements = roleData.educationRequirements?.hasRequirements 
+      ? roleData.educationRequirements.requirements 
+      : "No specific education requirements"
+
+    const experienceRequirements = roleData.experienceRequirements?.hasRequirements 
+      ? roleData.experienceRequirements.requirements 
+      : "No specific experience requirements"
+
     // Create role with secure user-scoped function
     const newRole = await createUserRole(userContext.userId, {
       title: roleData.title,
       description: roleData.description,
       responsibilities: roleData.responsibilities || null,
-      educationRequirements: roleData.educationRequirements,
-      experienceRequirements: roleData.experienceRequirements,
+      educationRequirements: educationRequirements,
+      experienceRequirements: experienceRequirements,
       bonusConfig: roleData.bonusConfig || null,
       penaltyConfig: roleData.penaltyConfig || null
     })

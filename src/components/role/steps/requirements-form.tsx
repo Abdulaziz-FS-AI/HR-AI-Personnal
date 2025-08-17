@@ -5,192 +5,379 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { ArrowRight, ArrowLeft, GraduationCap, Clock } from "lucide-react"
-import { requirementsStepSchema, type RequirementsStep } from "@/lib/validations/role"
+import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
+import { AlertCircle, CheckCircle, Lightbulb, Plus, ArrowRight, ArrowLeft } from "lucide-react"
+import { 
+  requirementsStepSchema, 
+  educationPresets,
+  experiencePresets,
+  type RequirementsStep 
+} from "@/lib/validations/role"
 
 interface RequirementsFormProps {
-  initialData?: RequirementsStep
+  initialData?: Partial<RequirementsStep>
   onSubmit: (data: RequirementsStep) => void
+  onNext: () => void
   onPrevious: () => void
   isLoading?: boolean
 }
 
-export function RequirementsForm({ initialData, onSubmit, onPrevious, isLoading }: RequirementsFormProps) {
+export function RequirementsForm({ 
+  initialData, 
+  onSubmit, 
+  onNext, 
+  onPrevious,
+  isLoading = false 
+}: RequirementsFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showEducationPresets, setShowEducationPresets] = useState(false)
+  const [showExperiencePresets, setShowExperiencePresets] = useState(false)
 
   const form = useForm<RequirementsStep>({
     resolver: zodResolver(requirementsStepSchema),
     defaultValues: {
-      educationRequirements: initialData?.educationRequirements || '',
-      experienceRequirements: initialData?.experienceRequirements || ''
-    }
+      educationRequirements: {
+        hasRequirements: initialData?.educationRequirements?.hasRequirements ?? true,
+        requirements: initialData?.educationRequirements?.requirements || ""
+      },
+      experienceRequirements: {
+        hasRequirements: initialData?.experienceRequirements?.hasRequirements ?? true,
+        requirements: initialData?.experienceRequirements?.requirements || ""
+      }
+    },
+    mode: "onChange"
   })
 
-  const handleSubmit = async (data: RequirementsStep) => {
+  const { 
+    register, 
+    handleSubmit, 
+    watch,
+    setValue,
+    formState: { errors, isValid, isDirty }
+  } = form
+
+  const educationHasRequirements = watch("educationRequirements.hasRequirements")
+  const experienceHasRequirements = watch("experienceRequirements.hasRequirements")
+  const educationRequirements = watch("educationRequirements.requirements")
+  const experienceRequirements = watch("experienceRequirements.requirements")
+
+  const handleFormSubmit = async (data: RequirementsStep) => {
     setIsSubmitting(true)
     try {
-      onSubmit(data)
+      await onSubmit(data)
+      onNext()
+    } catch (error) {
+      console.error('Requirements form submission error:', error)
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const handleEducationPresetSelect = (preset: string) => {
+    setValue("educationRequirements.requirements", preset, { shouldValidate: true })
+    setShowEducationPresets(false)
+  }
+
+  const handleExperiencePresetSelect = (preset: string) => {
+    setValue("experienceRequirements.requirements", preset, { shouldValidate: true })
+    setShowExperiencePresets(false)
+  }
+
+  const getValidationStatus = () => {
+    if (!educationHasRequirements && !experienceHasRequirements) {
+      return { type: "entry-level", message: "Entry-level position (no specific requirements)" }
+    }
+    if (errors.educationRequirements || errors.experienceRequirements) {
+      return { type: "error", message: "Please complete all required fields" }
+    }
+    if (isValid) {
+      return { type: "success", message: "Requirements properly configured" }
+    }
+    return { type: "pending", message: "Configure your requirements" }
+  }
+
+  const validationStatus = getValidationStatus()
+
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader className="text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <GraduationCap className="h-6 w-6 text-green-600" />
-          <CardTitle className="text-2xl font-bold">Requirements</CardTitle>
-        </div>
-        <p className="text-muted-foreground">
-          Step 2 of 5: Define education and experience requirements
+    <Card className="w-full max-w-5xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center">
+          Role Requirements
+        </CardTitle>
+        <p className="text-center text-muted-foreground">
+          Step 2 of 6: Define education and experience requirements
         </p>
+        
+        {/* Status Indicator */}
+        <div className="flex items-center justify-center gap-2 mt-4">
+          {validationStatus.type === "success" && (
+            <>
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-green-600 font-medium">{validationStatus.message}</span>
+            </>
+          )}
+          {validationStatus.type === "error" && (
+            <>
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <span className="text-red-600 font-medium">{validationStatus.message}</span>
+            </>
+          )}
+          {validationStatus.type === "entry-level" && (
+            <>
+              <Lightbulb className="h-5 w-5 text-blue-600" />
+              <span className="text-blue-600 font-medium">{validationStatus.message}</span>
+            </>
+          )}
+          {validationStatus.type === "pending" && (
+            <span className="text-gray-500 font-medium">{validationStatus.message}</span>
+          )}
+        </div>
       </CardHeader>
       
       <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-8">
+          {/* Education Requirements Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">📚 Education Requirements</h3>
+                <p className="text-sm text-gray-600">Specify education requirements for this role</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="education-toggle" className={educationHasRequirements ? "text-gray-900" : "text-gray-500"}>
+                  {educationHasRequirements ? "Has Requirements" : "No Requirements"}
+                </Label>
+                <Switch
+                  id="education-toggle"
+                  checked={educationHasRequirements}
+                  onCheckedChange={(checked) => {
+                    setValue("educationRequirements.hasRequirements", checked, { shouldValidate: true })
+                    if (!checked) {
+                      setValue("educationRequirements.requirements", "", { shouldValidate: true })
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {educationHasRequirements ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="education-requirements" className="text-sm font-medium">
+                    Education Requirements *
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowEducationPresets(!showEducationPresets)}
+                    className="text-blue-600 hover:text-blue-700 p-1 h-auto"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Use Preset
+                  </Button>
+                </div>
+
+                {showEducationPresets && (
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-blue-50 rounded-lg">
+                    <Label className="text-xs font-medium text-blue-800 col-span-2 mb-2">
+                      Common Education Requirements:
+                    </Label>
+                    {educationPresets.map((preset, index) => (
+                      <Button
+                        key={index}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEducationPresetSelect(preset)}
+                        className="text-left justify-start text-xs p-2 h-auto text-blue-700 hover:bg-blue-100"
+                      >
+                        {preset}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                <Textarea
+                  id="education-requirements"
+                  placeholder="e.g., Bachelor's degree in Computer Science or related field required. Master's degree preferred."
+                  rows={3}
+                  {...register("educationRequirements.requirements")}
+                  className={errors.educationRequirements?.requirements ? "border-red-500" : ""}
+                />
+                {errors.educationRequirements?.requirements && (
+                  <p className="text-sm text-red-500">{errors.educationRequirements.requirements.message}</p>
+                )}
+                <div className="text-xs text-gray-500">
+                  Character count: {educationRequirements.length}/500
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <div className="text-center">
+                  <Lightbulb className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600 font-medium">No Education Requirements</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Great for entry-level positions or roles where experience matters more than formal education
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Experience Requirements Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">💼 Experience Requirements</h3>
+                <p className="text-sm text-gray-600">Specify experience requirements for this role</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="experience-toggle" className={experienceHasRequirements ? "text-gray-900" : "text-gray-500"}>
+                  {experienceHasRequirements ? "Has Requirements" : "No Requirements"}
+                </Label>
+                <Switch
+                  id="experience-toggle"
+                  checked={experienceHasRequirements}
+                  onCheckedChange={(checked) => {
+                    setValue("experienceRequirements.hasRequirements", checked, { shouldValidate: true })
+                    if (!checked) {
+                      setValue("experienceRequirements.requirements", "", { shouldValidate: true })
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {experienceHasRequirements ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="experience-requirements" className="text-sm font-medium">
+                    Experience Requirements *
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowExperiencePresets(!showExperiencePresets)}
+                    className="text-blue-600 hover:text-blue-700 p-1 h-auto"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Use Preset
+                  </Button>
+                </div>
+
+                {showExperiencePresets && (
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-green-50 rounded-lg">
+                    <Label className="text-xs font-medium text-green-800 col-span-2 mb-2">
+                      Common Experience Requirements:
+                    </Label>
+                    {experiencePresets.map((preset, index) => (
+                      <Button
+                        key={index}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleExperiencePresetSelect(preset)}
+                        className="text-left justify-start text-xs p-2 h-auto text-green-700 hover:bg-green-100"
+                      >
+                        {preset}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                <Textarea
+                  id="experience-requirements"
+                  placeholder="e.g., 3-5 years of professional software development experience. Experience with modern web frameworks required."
+                  rows={3}
+                  {...register("experienceRequirements.requirements")}
+                  className={errors.experienceRequirements?.requirements ? "border-red-500" : ""}
+                />
+                {errors.experienceRequirements?.requirements && (
+                  <p className="text-sm text-red-500">{errors.experienceRequirements.requirements.message}</p>
+                )}
+                <div className="text-xs text-gray-500">
+                  Character count: {experienceRequirements.length}/500
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <div className="text-center">
+                  <Lightbulb className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600 font-medium">No Experience Requirements</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Perfect for entry-level positions, career changers, or when skills matter more than years of experience
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Summary Section */}
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Requirements Summary</h4>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Badge variant={educationHasRequirements ? "default" : "secondary"}>
+                  Education: {educationHasRequirements ? "Required" : "Not Required"}
+                </Badge>
+                <Badge variant={experienceHasRequirements ? "default" : "secondary"}>
+                  Experience: {experienceHasRequirements ? "Required" : "Not Required"}
+                </Badge>
+              </div>
+              <p className="text-sm text-blue-700">
+                {!educationHasRequirements && !experienceHasRequirements
+                  ? "This role is perfect for entry-level candidates and career changers."
+                  : educationHasRequirements && experienceHasRequirements
+                  ? "This role requires both specific education and experience qualifications."
+                  : educationHasRequirements
+                  ? "This role prioritizes education over experience."
+                  : "This role prioritizes experience over formal education."
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-between pt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onPrevious}
+              disabled={isSubmitting || isLoading}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Previous Step
+            </Button>
             
-            {/* Education Requirements */}
-            <FormField
-              control={form.control}
-              name="educationRequirements"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-semibold flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4" />
-                    Education Requirements <span className="text-red-500">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Describe the educational background needed for this role. Our AI will parse this intelligently."
-                      className="min-h-[100px] text-base"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <div className="bg-green-50 p-3 rounded-lg mt-2">
-                    <p className="text-sm text-green-800 font-medium mb-2">💡 Examples of effective descriptions:</p>
-                    <div className="space-y-1 text-sm text-green-700">
-                      <p>• "Bachelor's degree in Computer Science, Engineering, or equivalent experience"</p>
-                      <p>• "Master's degree in Marketing, Business, or related field preferred"</p>
-                      <p>• "High school diploma required, technical certifications a plus"</p>
-                      <p>• "PhD in Data Science, Statistics, Mathematics, or equivalent practical experience"</p>
-                    </div>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            {/* Experience Requirements */}
-            <FormField
-              control={form.control}
-              name="experienceRequirements"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Experience Requirements <span className="text-red-500">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Describe the professional experience needed. Include years, type of experience, and any specific industry knowledge."
-                      className="min-h-[100px] text-base"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <div className="bg-blue-50 p-3 rounded-lg mt-2">
-                    <p className="text-sm text-blue-800 font-medium mb-2">💡 Examples of effective descriptions:</p>
-                    <div className="space-y-1 text-sm text-blue-700">
-                      <p>• "5-7 years of backend development experience with Python or Java"</p>
-                      <p>• "3+ years in digital marketing with focus on SEM and social media"</p>
-                      <p>• "Entry level position, 0-2 years experience, strong willingness to learn"</p>
-                      <p>• "10+ years senior leadership experience in technology companies"</p>
-                      <p>• "2-4 years experience in data analysis, preferably in healthcare or finance"</p>
-                    </div>
-                  </div>
-                </FormItem>
-              )}
-            />
-
-            {/* AI Enhancement Note */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">AI</span>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">How our AI uses these requirements</h4>
-                  <p className="text-gray-700 text-sm mt-1">
-                    Our advanced AI will intelligently parse your plain-text requirements and evaluate candidates based on:
-                  </p>
-                  <ul className="list-disc ml-4 mt-2 text-sm text-gray-600 space-y-1">
-                    <li>Degree level and field relevance for education</li>
-                    <li>Years of experience and industry matching</li>
-                    <li>Alternative qualifications and equivalent experience</li>
-                    <li>Context-aware evaluation (startup vs enterprise, junior vs senior roles)</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress Indicator */}
-            <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">2</span>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-green-900">What's next?</h4>
-                  <p className="text-green-800 text-sm mt-1">
-                    Great! You've completed the required steps. The next 3 steps are optional but will unlock 
-                    our advanced AI scoring system with sophisticated bonus/penalty calculations for more accurate evaluations.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-between pt-6">
+            <div className="flex gap-3">
               <Button
                 type="button"
                 variant="outline"
-                onClick={onPrevious}
-                disabled={isLoading || isSubmitting}
-                className="min-w-[150px] h-12"
+                disabled={isSubmitting || isLoading}
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Previous Step
+                Save Draft
               </Button>
               
               <Button
                 type="submit"
-                disabled={isLoading || isSubmitting || !form.formState.isValid}
-                className="min-w-[200px] h-12 text-base font-semibold"
-                size="lg"
+                disabled={!isValid || isSubmitting || isLoading}
+                className="min-w-[120px]"
               >
-                {isSubmitting ? (
+                {isSubmitting ? "Saving..." : (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    Continue to Skills
+                    Next Step
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
             </div>
-          </form>
-        </Form>
+          </div>
+        </form>
       </CardContent>
     </Card>
   )

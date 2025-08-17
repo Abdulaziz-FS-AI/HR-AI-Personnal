@@ -88,13 +88,8 @@ export const roleSchema = z.object({
   
   // REMOVED: department, location, employmentType, seniorityLevel, minExperienceYears, maxExperienceYears
   
-  educationRequirements: z.string()
-    .min(1, "Education requirements are required")
-    .max(500, "Education requirements cannot exceed 500 characters"),
-    
-  experienceRequirements: z.string()
-    .min(1, "Experience requirements are required")
-    .max(500, "Experience requirements cannot exceed 500 characters"),
+  educationRequirements: educationRequirementSchema,
+  experienceRequirements: experienceRequirementSchema,
     
   // NEW: Bonus and penalty configurations
   bonusConfig: bonusConfigSchema,
@@ -109,12 +104,8 @@ export const createRoleSchema = roleSchema.extend({
   description: z.string()
     .min(10, "Description is required and must be at least 10 characters")
     .max(2500, "Description cannot exceed 2500 characters"),
-  educationRequirements: z.string()
-    .min(1, "Education requirements are required")
-    .max(500, "Education requirements cannot exceed 500 characters"),
-  experienceRequirements: z.string()
-    .min(1, "Experience requirements are required")
-    .max(500, "Experience requirements cannot exceed 500 characters")
+  educationRequirements: educationRequirementSchema,
+  experienceRequirements: experienceRequirementSchema
 })
 
 // Update role schema (all fields optional except validation rules)
@@ -205,15 +196,37 @@ export const jobDetailsStepSchema = z.object({
     .optional(),
 })
 
-// Requirements step schema (NEW - replaces experience/education individual fields)
+// Enhanced Requirements Schema with Optional Requirements Support
+export const educationRequirementSchema = z.object({
+  hasRequirements: z.boolean(),
+  requirements: z.string().max(500, "Education requirements cannot exceed 500 characters")
+}).refine((data) => {
+  if (data.hasRequirements) {
+    return data.requirements.trim().length >= 10
+  }
+  return true
+}, {
+  message: "Please provide education requirements (minimum 10 characters) or disable education requirements",
+  path: ["requirements"]
+})
+
+export const experienceRequirementSchema = z.object({
+  hasRequirements: z.boolean(),
+  requirements: z.string().max(500, "Experience requirements cannot exceed 500 characters")
+}).refine((data) => {
+  if (data.hasRequirements) {
+    return data.requirements.trim().length >= 10
+  }
+  return true
+}, {
+  message: "Please provide experience requirements (minimum 10 characters) or disable experience requirements",
+  path: ["requirements"]
+})
+
+// Requirements step schema (ENHANCED - flexible education/experience handling)
 export const requirementsStepSchema = z.object({
-  educationRequirements: z.string()
-    .min(1, "Education requirements are required")
-    .max(500, "Education requirements cannot exceed 500 characters"),
-    
-  experienceRequirements: z.string()
-    .min(1, "Experience requirements are required")
-    .max(500, "Experience requirements cannot exceed 500 characters")
+  educationRequirements: educationRequirementSchema,
+  experienceRequirements: experienceRequirementSchema
 })
 
 // Bonus/Penalty step schema (NEW)
@@ -335,12 +348,39 @@ export const employmentGapThresholds = [
   { value: "2years", label: "2 years" }
 ] as const
 
+// Predefined requirement presets for better UX
+export const educationPresets = [
+  "No formal education requirements",
+  "High school diploma or equivalent",
+  "Associate degree preferred",
+  "Bachelor's degree preferred but not required",
+  "Bachelor's degree in relevant field required",
+  "Bachelor's degree in Computer Science or related field",
+  "Master's degree preferred",
+  "Advanced degree (Master's/PhD) required",
+  "Professional certifications preferred"
+] as const
+
+export const experiencePresets = [
+  "No prior experience required - entry level",
+  "0-1 years of relevant experience",
+  "1-2 years of relevant experience",
+  "2-3 years of professional experience",
+  "3-5 years of professional experience",
+  "5-7 years of senior-level experience",
+  "7+ years of expert-level experience",
+  "Leadership/management experience required",
+  "Previous startup experience preferred"
+] as const
+
 // Type exports for TypeScript
 export type Role = z.infer<typeof roleSchema>
 export type CreateRole = z.infer<typeof createRoleSchema>
 export type UpdateRole = z.infer<typeof updateRoleSchema>
 export type JobDetailsStep = z.infer<typeof jobDetailsStepSchema>
 export type RequirementsStep = z.infer<typeof requirementsStepSchema>
+export type EducationRequirement = z.infer<typeof educationRequirementSchema>
+export type ExperienceRequirement = z.infer<typeof experienceRequirementSchema>
 export type BonusPenaltyStep = z.infer<typeof bonusPenaltyStepSchema>
 export type BonusConfig = z.infer<typeof bonusConfigSchema>
 export type PenaltyConfig = z.infer<typeof penaltyConfigSchema>

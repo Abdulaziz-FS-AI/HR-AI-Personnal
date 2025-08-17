@@ -29,6 +29,15 @@ interface ResumeAnalysisRequest {
   roleId: string
   userId: string
   extractedText: string
+  // Core role requirements (ENHANCED)
+  educationRequirements?: {
+    hasRequirements: boolean
+    requirements: string
+  }
+  experienceRequirements?: {
+    hasRequirements: boolean
+    requirements: string
+  }
   roleSkills: Array<{
     skillName: string
     weight: number
@@ -75,6 +84,21 @@ interface ResumeAnalysisRequest {
 interface ResumeAnalysisResult {
   fileId: string
   overallScore: number
+  // Enhanced analysis with education/experience (BACKEND PROFESSIONAL APPROACH)
+  educationAnalysis?: {
+    meetsRequirements: boolean
+    score: number
+    confidence: number
+    evidence: string[]
+    details: string
+  }
+  experienceAnalysis?: {
+    meetsRequirements: boolean
+    score: number
+    confidence: number
+    evidence: string[]
+    details: string
+  }
   skillsAnalysis: Array<{
     skillName: string
     found: boolean
@@ -274,7 +298,24 @@ export class HyperbolicService {
       }
     }
 
+    // Build core requirements sections (ENHANCED)
+    let educationSection = ''
+    if (request.educationRequirements?.hasRequirements) {
+      educationSection = `\n📚 EDUCATION REQUIREMENTS:\n${request.educationRequirements.requirements}`
+    } else {
+      educationSection = `\n📚 EDUCATION REQUIREMENTS: No specific education requirements`
+    }
+
+    let experienceSection = ''
+    if (request.experienceRequirements?.hasRequirements) {
+      experienceSection = `\n💼 EXPERIENCE REQUIREMENTS:\n${request.experienceRequirements.requirements}`
+    } else {
+      experienceSection = `\n💼 EXPERIENCE REQUIREMENTS: No specific experience requirements`
+    }
+
     const hasAdvancedScoring = bonusSection || penaltySection
+    const hasEducationReqs = request.educationRequirements?.hasRequirements || false
+    const hasExperienceReqs = request.experienceRequirements?.hasRequirements || false
 
     return `Please analyze this resume against the specified role requirements and provide a structured evaluation using ${hasAdvancedScoring ? 'ADVANCED' : 'BASIC'} scoring methodology.
 
@@ -283,15 +324,20 @@ ADVANCED SCORING FORMULA:
 Base Score (0-70) + Bonuses (0-30) - Penalties (0-20) = Final Score (0-100)
 
 BASE SCORING (0-70 points):
-- Skills Match (0-40 points): Weighted evaluation of required and desired skills
-- Questions Score (0-20 points): Assessment of role-specific questions  
+- Education Match (0-${hasEducationReqs ? '15' : '0'} points): ${hasEducationReqs ? 'Education requirements compliance' : 'No education scoring'}
+- Experience Match (0-${hasExperienceReqs ? '15' : '0'} points): ${hasExperienceReqs ? 'Experience requirements compliance' : 'No experience scoring'}
+- Skills Match (0-${hasEducationReqs || hasExperienceReqs ? '25' : '40'} points): Weighted evaluation of required and desired skills
+- Questions Score (0-15 points): Assessment of role-specific questions  
 - Overall Relevance (0-10 points): General resume relevance to role
 ` : `
 BASIC SCORING (0-100 points):
-Standard skills and questions evaluation with overall assessment.
+- Education Match (0-${hasEducationReqs ? '20' : '0'} points): ${hasEducationReqs ? 'Education requirements compliance' : 'No education scoring'}
+- Experience Match (0-${hasExperienceReqs ? '20' : '0'} points): ${hasExperienceReqs ? 'Experience requirements compliance' : 'No experience scoring'}
+- Skills Match (0-${hasEducationReqs || hasExperienceReqs ? '40' : '60'} points): Skills evaluation
+- Questions Score (0-20 points): Assessment of role-specific questions
 `}
 
-ROLE REQUIREMENTS:
+ROLE REQUIREMENTS:${educationSection}${experienceSection}
 
 Skills Required:
 ${skillsList}
@@ -307,7 +353,21 @@ Please provide your analysis in the following JSON format:
   "overallScore": [0-100 integer score${hasAdvancedScoring ? ' using advanced formula' : ''}],
   ${hasAdvancedScoring ? `"baseScore": [0-70 base score before bonuses/penalties],
   "bonusPoints": [0-30 total bonus points awarded],
-  "penaltyPoints": [0-20 total penalty points deducted],` : ''}
+  "penaltyPoints": [0-20 total penalty points deducted],` : ''}${hasEducationReqs ? `
+  "educationAnalysis": {
+    "meetsRequirements": [true/false],
+    "score": [0-${hasAdvancedScoring ? '15' : '20'}],
+    "confidence": [0-100],
+    "evidence": ["specific education details from resume"],
+    "details": "[detailed analysis of education match]"
+  },` : ''}${hasExperienceReqs ? `
+  "experienceAnalysis": {
+    "meetsRequirements": [true/false],
+    "score": [0-${hasAdvancedScoring ? '15' : '20'}],
+    "confidence": [0-100],
+    "evidence": ["specific experience details from resume"],
+    "details": "[detailed analysis of experience match]"
+  },` : ''}
   "skillsAnalysis": [
     {
       "skillName": "[exact skill name from requirements]",
@@ -360,6 +420,21 @@ ${hasAdvancedScoring ? 'Use the advanced scoring system to provide nuanced evalu
       return {
         fileId,
         overallScore: Math.max(0, Math.min(100, parseInt(parsed.overallScore) || 0)),
+        // Enhanced analysis parsing (SENIOR BACKEND APPROACH)
+        educationAnalysis: parsed.educationAnalysis ? {
+          meetsRequirements: Boolean(parsed.educationAnalysis.meetsRequirements),
+          score: Math.max(0, Math.min(20, parseInt(parsed.educationAnalysis.score) || 0)),
+          confidence: Math.max(0, Math.min(100, parseInt(parsed.educationAnalysis.confidence) || 0)),
+          evidence: Array.isArray(parsed.educationAnalysis.evidence) ? parsed.educationAnalysis.evidence : [],
+          details: parsed.educationAnalysis.details || 'No details provided'
+        } : undefined,
+        experienceAnalysis: parsed.experienceAnalysis ? {
+          meetsRequirements: Boolean(parsed.experienceAnalysis.meetsRequirements),
+          score: Math.max(0, Math.min(20, parseInt(parsed.experienceAnalysis.score) || 0)),
+          confidence: Math.max(0, Math.min(100, parseInt(parsed.experienceAnalysis.confidence) || 0)),
+          evidence: Array.isArray(parsed.experienceAnalysis.evidence) ? parsed.experienceAnalysis.evidence : [],
+          details: parsed.experienceAnalysis.details || 'No details provided'
+        } : undefined,
         skillsAnalysis: Array.isArray(parsed.skillsAnalysis) ? parsed.skillsAnalysis : [],
         questionsAnalysis: Array.isArray(parsed.questionsAnalysis) ? parsed.questionsAnalysis : [],
         summary: parsed.summary || 'No summary provided',

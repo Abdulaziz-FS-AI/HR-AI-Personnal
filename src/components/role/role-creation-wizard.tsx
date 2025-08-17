@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, AlertCircle, Save } from "lucide-react"
 import { JobDetailsForm } from "./job-details-form"
-import { RequirementsMatrix, type Requirement } from "./requirements-matrix"
+import { RequirementsForm } from "./steps/requirements-form"
 import { SkillsMatrix } from "./skills-matrix"
 import { BonusPenaltyConfig } from "./steps/bonus-penalty-config"
 import { QuestionsBuilder } from "./questions-builder"
-import { type JobDetailsStep, type Skill, type Question, type BonusPenaltyStep } from "@/lib/validations/role"
+import { type JobDetailsStep, type RequirementsStep, type Skill, type Question, type BonusPenaltyStep } from "@/lib/validations/role"
 
 interface RoleData {
   job: JobDetailsStep | null
-  requirements: Requirement[]
+  requirements: RequirementsStep | null
   skills: Skill[]
   bonusPenalty: BonusPenaltyStep | null
   questions: Question[]
@@ -50,7 +50,7 @@ export function RoleCreationWizard({
   
   const [roleData, setRoleData] = useState<RoleData>({
     job: initialData?.job || null,
-    requirements: initialData?.requirements || [],
+    requirements: initialData?.requirements || null,
     skills: initialData?.skills || [],
     bonusPenalty: initialData?.bonusPenalty || null,
     questions: initialData?.questions || []
@@ -58,7 +58,7 @@ export function RoleCreationWizard({
 
   // Auto-save draft functionality with debounce
   useEffect(() => {
-    const hasData = roleData.job || roleData.requirements.length > 0 || roleData.skills.length > 0 || roleData.bonusPenalty || roleData.questions.length > 0
+    const hasData = roleData.job || roleData.requirements || roleData.skills.length > 0 || roleData.bonusPenalty || roleData.questions.length > 0
     if (!hasData) return
     
     const timeoutId = setTimeout(() => {
@@ -72,7 +72,7 @@ export function RoleCreationWizard({
     setRoleData(prev => ({ ...prev, job: jobData }))
   }
 
-  const handleRequirementsSubmit = (requirements: Requirement[]) => {
+  const handleRequirementsSubmit = (requirements: RequirementsStep) => {
     setRoleData(prev => ({ ...prev, requirements }))
   }
 
@@ -128,7 +128,7 @@ export function RoleCreationWizard({
     }
     
     // Show warnings for empty sections but don't block creation
-    if (roleData.requirements.length === 0) {
+    if (!roleData.requirements) {
       toast.warning("Role created without requirements - you can add them later")
     }
     if (roleData.skills.length === 0) {
@@ -141,10 +141,22 @@ export function RoleCreationWizard({
     let createdRoleId: string | null = null
     
     try {
-      // 1. Create the role - send only the job details we have
-      const fullRoleData = roleData.job
+      // 1. Create the role - send complete role data including requirements
+      const fullRoleData = {
+        ...roleData.job,
+        educationRequirements: roleData.requirements?.educationRequirements || {
+          hasRequirements: false,
+          requirements: ""
+        },
+        experienceRequirements: roleData.requirements?.experienceRequirements || {
+          hasRequirements: false,
+          requirements: ""
+        },
+        bonusConfig: roleData.bonusPenalty?.bonusConfig || null,
+        penaltyConfig: roleData.bonusPenalty?.penaltyConfig || null
+      }
       
-      console.log('Creating role with data:', fullRoleData)
+      console.log('Creating role with complete data:', fullRoleData)
       
       const roleResponse = await fetch('/api/roles', {
         method: 'POST',
@@ -168,34 +180,15 @@ export function RoleCreationWizard({
       console.log('Role created successfully with ID:', createdRoleId)
 
       // 2. Add requirements (with error handling)
-      if (roleData.requirements.length > 0) {
-        console.log('Adding requirements:', roleData.requirements.length)
-        const requirementPromises = roleData.requirements.map(async (requirement) => {
-          try {
-            const response = await fetch('/api/role-requirements', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                ...requirement,
-                roleId: createdRole.id
-              }),
-            })
-            
-            if (!response.ok) {
-              const errorData = await response.json()
-              console.error('Requirement creation error:', errorData)
-              // Don't throw - continue with other requirements
-            }
-            return response
-          } catch (error) {
-            console.error('Failed to create requirement:', error)
-            // Don't throw - continue with other requirements
-          }
-        })
-
-        await Promise.all(requirementPromises)
+      if (roleData.requirements) {
+        console.log('Adding requirements to role:', createdRole.id)
+        try {
+          // Include requirements in role creation itself rather than separate API calls
+          // The requirements will be processed in the AI evaluation phase
+          console.log('Requirements will be included in AI evaluation:', roleData.requirements)
+        } catch (error) {
+          console.error('Failed to process requirements:', error)
+        }
       }
 
       // 3. Add skills (with error handling)
@@ -358,8 +351,8 @@ export function RoleCreationWizard({
         )
       case 2:
         return (
-          <RequirementsMatrix
-            initialRequirements={roleData.requirements}
+          <RequirementsForm
+            initialData={roleData.requirements || undefined}
             onSubmit={handleRequirementsSubmit}
             onNext={nextStep}
             onPrevious={previousStep}
@@ -560,13 +553,12 @@ function ReviewStep({ roleData, onSubmit, onPrevious, isLoading, isEditing }: Re
         <div className="bg-blue-50 p-4 rounded-lg">
           <h3 className="font-semibold text-blue-900 mb-3">Job Details</h3>
           {job ? (
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="space-y-2 text-sm">
               <div><strong>Title:</strong> {job.title}</div>
-              <div><strong>Department:</strong> {job.department || "Not specified"}</div>
-              <div><strong>Location:</strong> {job.location || "Not specified"}</div>
-              <div><strong>Employment Type:</strong> {job.employmentType || "Not specified"}</div>
-              <div><strong>Seniority:</strong> {job.seniorityLevel || "Not specified"}</div>
-              <div><strong>Experience:</strong> {job.minExperienceYears || 0}-{job.maxExperienceYears || "∞"} years</div>
+              <div><strong>Description:</strong> {job.description}</div>
+              {job.responsibilities && (
+                <div><strong>Responsibilities:</strong> {job.responsibilities}</div>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 text-red-600">
@@ -578,22 +570,31 @@ function ReviewStep({ roleData, onSubmit, onPrevious, isLoading, isEditing }: Re
 
         {/* Requirements Summary */}
         <div className="bg-orange-50 p-4 rounded-lg">
-          <h3 className="font-semibold text-orange-900 mb-3">Requirements ({requirements.length})</h3>
-          {requirements.length > 0 ? (
-            <div className="space-y-2">
-              {requirements.map((requirement, index) => (
-                <div key={index} className="flex justify-between items-center text-sm">
-                  <span className="flex-1">{requirement.requirementText}</span>
-                  <div className="flex items-center gap-2 ml-4">
-                    <span className="text-gray-500 capitalize">{requirement.category}</span>
-                    <span className="font-medium">Weight: {requirement.weight}/10</span>
-                    {requirement.isRequired && <span className="text-red-600 text-xs">Required</span>}
-                  </div>
-                </div>
-              ))}
+          <h3 className="font-semibold text-orange-900 mb-3">Requirements</h3>
+          {requirements ? (
+            <div className="space-y-3">
+              {/* Education Requirements */}
+              <div>
+                <h4 className="font-medium text-orange-800">📚 Education:</h4>
+                {requirements.educationRequirements.hasRequirements ? (
+                  <p className="text-sm text-orange-700 mt-1">{requirements.educationRequirements.requirements}</p>
+                ) : (
+                  <p className="text-sm text-orange-600 italic">No specific education requirements</p>
+                )}
+              </div>
+              
+              {/* Experience Requirements */}
+              <div>
+                <h4 className="font-medium text-orange-800">💼 Experience:</h4>
+                {requirements.experienceRequirements.hasRequirements ? (
+                  <p className="text-sm text-orange-700 mt-1">{requirements.experienceRequirements.requirements}</p>
+                ) : (
+                  <p className="text-sm text-orange-600 italic">No specific experience requirements</p>
+                )}
+              </div>
             </div>
           ) : (
-            <p className="text-orange-700 text-sm">No requirements added (optional)</p>
+            <p className="text-orange-700 text-sm">No requirements configured (optional)</p>
           )}
         </div>
 
