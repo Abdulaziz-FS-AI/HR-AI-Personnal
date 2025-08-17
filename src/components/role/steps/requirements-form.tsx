@@ -9,11 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle, Lightbulb, Plus, ArrowRight, ArrowLeft } from "lucide-react"
+import { AlertCircle, CheckCircle, Lightbulb, ArrowRight, ArrowLeft } from "lucide-react"
 import { 
   requirementsStepSchema, 
-  educationPresets,
-  experiencePresets,
   type RequirementsStep 
 } from "@/lib/validations/role"
 
@@ -33,8 +31,6 @@ export function RequirementsForm({
   isLoading = false 
 }: RequirementsFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showEducationPresets, setShowEducationPresets] = useState(false)
-  const [showExperiencePresets, setShowExperiencePresets] = useState(false)
 
   const form = useForm<RequirementsStep>({
     resolver: zodResolver(requirementsStepSchema),
@@ -76,15 +72,6 @@ export function RequirementsForm({
     }
   }
 
-  const handleEducationPresetSelect = (preset: string) => {
-    setValue("educationRequirements.requirements", preset, { shouldValidate: true })
-    setShowEducationPresets(false)
-  }
-
-  const handleExperiencePresetSelect = (preset: string) => {
-    setValue("experienceRequirements.requirements", preset, { shouldValidate: true })
-    setShowExperiencePresets(false)
-  }
 
   const getValidationStatus = () => {
     if (!educationHasRequirements && !experienceHasRequirements) {
@@ -148,7 +135,7 @@ export function RequirementsForm({
               </div>
               <div className="flex items-center gap-3">
                 <Label htmlFor="education-toggle" className={educationHasRequirements ? "text-gray-900" : "text-gray-500"}>
-                  {educationHasRequirements ? "Has Requirements" : "No Requirements"}
+                  {educationHasRequirements ? "Education Required" : "Education Not Required"}
                 </Label>
                 <Switch
                   id="education-toggle"
@@ -165,41 +152,9 @@ export function RequirementsForm({
 
             {educationHasRequirements ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="education-requirements" className="text-sm font-medium">
-                    Education Requirements *
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowEducationPresets(!showEducationPresets)}
-                    className="text-blue-600 hover:text-blue-700 p-1 h-auto"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Use Preset
-                  </Button>
-                </div>
-
-                {showEducationPresets && (
-                  <div className="grid grid-cols-2 gap-2 p-3 bg-blue-50 rounded-lg">
-                    <Label className="text-xs font-medium text-blue-800 col-span-2 mb-2">
-                      Common Education Requirements:
-                    </Label>
-                    {educationPresets.map((preset, index) => (
-                      <Button
-                        key={index}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEducationPresetSelect(preset)}
-                        className="text-left justify-start text-xs p-2 h-auto text-blue-700 hover:bg-blue-100"
-                      >
-                        {preset}
-                      </Button>
-                    ))}
-                  </div>
-                )}
+                <Label htmlFor="education-requirements" className="text-sm font-medium">
+                  Education Requirements *
+                </Label>
 
                 <Textarea
                   id="education-requirements"
@@ -237,7 +192,7 @@ export function RequirementsForm({
               </div>
               <div className="flex items-center gap-3">
                 <Label htmlFor="experience-toggle" className={experienceHasRequirements ? "text-gray-900" : "text-gray-500"}>
-                  {experienceHasRequirements ? "Has Requirements" : "No Requirements"}
+                  {experienceHasRequirements ? "Experience Required" : "Experience Not Required"}
                 </Label>
                 <Switch
                   id="experience-toggle"
@@ -254,41 +209,9 @@ export function RequirementsForm({
 
             {experienceHasRequirements ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="experience-requirements" className="text-sm font-medium">
-                    Experience Requirements *
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowExperiencePresets(!showExperiencePresets)}
-                    className="text-blue-600 hover:text-blue-700 p-1 h-auto"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Use Preset
-                  </Button>
-                </div>
-
-                {showExperiencePresets && (
-                  <div className="grid grid-cols-2 gap-2 p-3 bg-green-50 rounded-lg">
-                    <Label className="text-xs font-medium text-green-800 col-span-2 mb-2">
-                      Common Experience Requirements:
-                    </Label>
-                    {experiencePresets.map((preset, index) => (
-                      <Button
-                        key={index}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleExperiencePresetSelect(preset)}
-                        className="text-left justify-start text-xs p-2 h-auto text-green-700 hover:bg-green-100"
-                      >
-                        {preset}
-                      </Button>
-                    ))}
-                  </div>
-                )}
+                <Label htmlFor="experience-requirements" className="text-sm font-medium">
+                  Experience Requirements *
+                </Label>
 
                 <Textarea
                   id="experience-requirements"

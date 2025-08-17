@@ -348,30 +348,6 @@ export const employmentGapThresholds = [
   { value: "2years", label: "2 years" }
 ] as const
 
-// Predefined requirement presets for better UX
-export const educationPresets = [
-  "No formal education requirements",
-  "High school diploma or equivalent",
-  "Associate degree preferred",
-  "Bachelor's degree preferred but not required",
-  "Bachelor's degree in relevant field required",
-  "Bachelor's degree in Computer Science or related field",
-  "Master's degree preferred",
-  "Advanced degree (Master's/PhD) required",
-  "Professional certifications preferred"
-] as const
-
-export const experiencePresets = [
-  "No prior experience required - entry level",
-  "0-1 years of relevant experience",
-  "1-2 years of relevant experience",
-  "2-3 years of professional experience",
-  "3-5 years of professional experience",
-  "5-7 years of senior-level experience",
-  "7+ years of expert-level experience",
-  "Leadership/management experience required",
-  "Previous startup experience preferred"
-] as const
 
 // Type exports for TypeScript
 export type Role = z.infer<typeof roleSchema>
