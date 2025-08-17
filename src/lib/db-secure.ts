@@ -6,6 +6,9 @@
 import sql from 'mssql'
 import { getDbConnection } from './db'
 
+// Export getConnection as an alias for getDbConnection for backward compatibility
+export const getConnection = getDbConnection
+
 /**
  * Base function to ensure all queries include user_id filtering
  */
@@ -41,6 +44,7 @@ export async function getUserRoles(userId: string) {
     return result.recordset
   })
 }
+
 
 export async function getUserRole(userId: string, roleId: string) {
   return executeUserScopedQuery(userId, async (pool, uid) => {

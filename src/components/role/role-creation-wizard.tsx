@@ -10,13 +10,15 @@ import { CheckCircle, AlertCircle, Save } from "lucide-react"
 import { JobDetailsForm } from "./job-details-form"
 import { RequirementsMatrix, type Requirement } from "./requirements-matrix"
 import { SkillsMatrix } from "./skills-matrix"
+import { BonusPenaltyConfig } from "./steps/bonus-penalty-config"
 import { QuestionsBuilder } from "./questions-builder"
-import { type JobDetailsStep, type Skill, type Question } from "@/lib/validations/role"
+import { type JobDetailsStep, type Skill, type Question, type BonusPenaltyStep } from "@/lib/validations/role"
 
 interface RoleData {
   job: JobDetailsStep | null
   requirements: Requirement[]
   skills: Skill[]
+  bonusPenalty: BonusPenaltyStep | null
   questions: Question[]
 }
 
@@ -30,8 +32,9 @@ const STEPS = [
   { id: 1, title: "Job Details", description: "Basic role information" },
   { id: 2, title: "Requirements", description: "Education, experience & qualifications" },
   { id: 3, title: "Skills Matrix", description: "Define required skills" },
-  { id: 4, title: "Custom Questions", description: "Role-specific questions" },
-  { id: 5, title: "Review & Create", description: "Finalize your role" }
+  { id: 4, title: "Bonus & Penalties", description: "Advanced scoring enhancements" },
+  { id: 5, title: "Custom Questions", description: "Role-specific questions" },
+  { id: 6, title: "Review & Create", description: "Finalize your role" }
 ]
 
 export function RoleCreationWizard({ 
@@ -49,12 +52,13 @@ export function RoleCreationWizard({
     job: initialData?.job || null,
     requirements: initialData?.requirements || [],
     skills: initialData?.skills || [],
+    bonusPenalty: initialData?.bonusPenalty || null,
     questions: initialData?.questions || []
   })
 
   // Auto-save draft functionality with debounce
   useEffect(() => {
-    const hasData = roleData.job || roleData.requirements.length > 0 || roleData.skills.length > 0 || roleData.questions.length > 0
+    const hasData = roleData.job || roleData.requirements.length > 0 || roleData.skills.length > 0 || roleData.bonusPenalty || roleData.questions.length > 0
     if (!hasData) return
     
     const timeoutId = setTimeout(() => {
@@ -74,6 +78,10 @@ export function RoleCreationWizard({
 
   const handleSkillsSubmit = (skills: Skill[]) => {
     setRoleData(prev => ({ ...prev, skills }))
+  }
+
+  const handleBonusPenaltySubmit = (bonusPenalty: BonusPenaltyStep) => {
+    setRoleData(prev => ({ ...prev, bonusPenalty }))
   }
 
   const handleQuestionsSubmit = (questions: Question[]) => {
@@ -370,6 +378,21 @@ export function RoleCreationWizard({
         )
       case 4:
         return (
+          <BonusPenaltyConfig
+            initialData={roleData.bonusPenalty || undefined}
+            onSubmit={handleBonusPenaltySubmit}
+            onNext={nextStep}
+            onPrevious={previousStep}
+            onSkip={() => {
+              // Skip step by setting empty configuration
+              setRoleData(prev => ({ ...prev, bonusPenalty: null }))
+              nextStep()
+            }}
+            isLoading={isLoading}
+          />
+        )
+      case 5:
+        return (
           <QuestionsBuilder
             initialQuestions={roleData.questions}
             onSubmit={handleQuestionsSubmit}
@@ -378,7 +401,7 @@ export function RoleCreationWizard({
             isLoading={isLoading}
           />
         )
-      case 5:
+      case 6:
         return (
           <ReviewStep
             roleData={roleData}
@@ -515,7 +538,7 @@ interface ReviewStepProps {
 }
 
 function ReviewStep({ roleData, onSubmit, onPrevious, isLoading, isEditing }: ReviewStepProps) {
-  const { job, requirements, skills, questions } = roleData
+  const { job, requirements, skills, bonusPenalty, questions } = roleData
 
   return (
     <Card className="w-full max-w-6xl mx-auto">
@@ -524,7 +547,7 @@ function ReviewStep({ roleData, onSubmit, onPrevious, isLoading, isEditing }: Re
           Review & {isEditing ? 'Update' : 'Create'} Role
         </CardTitle>
         <p className="text-center text-muted-foreground">
-          Step 5 of 5: Review your role details before {isEditing ? 'updating' : 'creating'}
+          Step 6 of 6: Review your role details before {isEditing ? 'updating' : 'creating'}
         </p>
       </CardHeader>
       
@@ -588,6 +611,66 @@ function ReviewStep({ roleData, onSubmit, onPrevious, isLoading, isEditing }: Re
             </div>
           ) : (
             <p className="text-green-700 text-sm">No skills added yet (you can add them later)</p>
+          )}
+        </div>
+
+        {/* Bonus/Penalty Configuration Summary */}
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <h3 className="font-semibold text-blue-900 mb-3">Advanced Scoring Configuration</h3>
+          {bonusPenalty ? (
+            <div className="space-y-3">
+              {/* Bonus Configuration */}
+              <div>
+                <h4 className="font-medium text-blue-800 mb-2">Quality Bonuses:</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {bonusPenalty.bonusConfig?.preferredEducation?.enabled && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      <span>Preferred Education</span>
+                    </div>
+                  )}
+                  {bonusPenalty.bonusConfig?.preferredCompanies?.enabled && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      <span>Preferred Companies</span>
+                    </div>
+                  )}
+                  {bonusPenalty.bonusConfig?.relatedProjects?.enabled && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      <span>Related Projects</span>
+                    </div>
+                  )}
+                  {bonusPenalty.bonusConfig?.relatedCertifications?.enabled && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                      <span>Valuable Certifications</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Penalty Configuration */}
+              <div>
+                <h4 className="font-medium text-blue-800 mb-2">Risk Penalties:</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {bonusPenalty.penaltyConfig?.jobHopping?.enabled && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                      <span>Job Stability Check ({bonusPenalty.penaltyConfig.jobHopping.sensitivity})</span>
+                    </div>
+                  )}
+                  {bonusPenalty.penaltyConfig?.employmentGaps?.enabled && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                      <span>Employment Gaps (&gt;{bonusPenalty.penaltyConfig.employmentGaps.threshold})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-blue-700 text-sm">Basic evaluation only (no advanced scoring enhancements)</p>
           )}
         </div>
 

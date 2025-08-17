@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, ArrowLeft, Star, AlertTriangle, Plus, Minus, Skip } from "lucide-react"
+import { ArrowRight, ArrowLeft, Star, AlertTriangle, Plus, Minus, SkipForward } from "lucide-react"
 import { bonusPenaltyStepSchema, type BonusPenaltyStep, universityCategories, companyCategories, jobHoppingSensitivity, employmentGapThresholds } from "@/lib/validations/role"
 
 interface BonusPenaltyConfigProps {
@@ -570,7 +570,7 @@ export function BonusPenaltyConfig({ initialData, onSubmit, onPrevious, onSkip, 
                   disabled={isLoading || isSubmitting}
                   className="min-w-[120px] h-12"
                 >
-                  <Skip className="mr-2 h-4 w-4" />
+                  <SkipForward className="mr-2 h-4 w-4" />
                   Skip Step
                 </Button>
                 

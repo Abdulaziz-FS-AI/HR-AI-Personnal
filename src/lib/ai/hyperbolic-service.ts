@@ -40,6 +40,36 @@ interface ResumeAnalysisRequest {
     weight: number
     category: string
   }>
+  bonusConfig?: {
+    preferredEducation?: {
+      enabled: boolean
+      specificUniversities?: string[]
+      universityCategories?: string[]
+    }
+    preferredCompanies?: {
+      enabled: boolean
+      specificCompanies?: string[]
+      companyCategories?: string[]
+    }
+    relatedProjects?: {
+      enabled: boolean
+      description: string
+    }
+    relatedCertifications?: {
+      enabled: boolean
+      certificationsList?: string[]
+    }
+  }
+  penaltyConfig?: {
+    jobHopping?: {
+      enabled: boolean
+      sensitivity: 'strict' | 'moderate' | 'lenient'
+    }
+    employmentGaps?: {
+      enabled: boolean
+      threshold: '6months' | '1year' | '2years'
+    }
+  }
 }
 
 interface ResumeAnalysisResult {
@@ -188,7 +218,78 @@ export class HyperbolicService {
       `- ${q.questionText} (Weight: ${q.weight}/10) [Category: ${q.category}]`
     ).join('\n')
 
-    return `Please analyze this resume against the specified role requirements and provide a structured evaluation.
+    // Build bonus configuration section
+    let bonusSection = ''
+    if (request.bonusConfig) {
+      const bonuses = []
+      
+      if (request.bonusConfig.preferredEducation?.enabled) {
+        const unis = request.bonusConfig.preferredEducation.specificUniversities || []
+        const cats = request.bonusConfig.preferredEducation.universityCategories || []
+        bonuses.push(`- Education Bonus: Award 3-5 bonus points for graduation from preferred universities (${unis.join(', ')}) or categories (${cats.join(', ')})`)
+      }
+      
+      if (request.bonusConfig.preferredCompanies?.enabled) {
+        const companies = request.bonusConfig.preferredCompanies.specificCompanies || []
+        const cats = request.bonusConfig.preferredCompanies.companyCategories || []
+        bonuses.push(`- Company Experience Bonus: Award 4-6 bonus points for experience at preferred companies (${companies.join(', ')}) or categories (${cats.join(', ')})`)
+      }
+      
+      if (request.bonusConfig.relatedProjects?.enabled) {
+        bonuses.push(`- Project Relevance Bonus: Evaluate project alignment (1-10 scale) based on: ${request.bonusConfig.relatedProjects.description}`)
+      }
+      
+      if (request.bonusConfig.relatedCertifications?.enabled) {
+        const certs = request.bonusConfig.relatedCertifications.certificationsList || []
+        bonuses.push(`- Certification Bonus: Evaluate certification relevance (1-10 scale) for: ${certs.join(', ')}`)
+      }
+      
+      if (bonuses.length > 0) {
+        bonusSection = `\nQUALITY BONUSES (0-30 points total):\n${bonuses.join('\n')}`
+      }
+    }
+
+    // Build penalty configuration section
+    let penaltySection = ''
+    if (request.penaltyConfig) {
+      const penalties = []
+      
+      if (request.penaltyConfig.jobHopping?.enabled) {
+        const sensitivity = request.penaltyConfig.jobHopping.sensitivity
+        const thresholds = {
+          strict: '20%',
+          moderate: '30%',
+          lenient: '50%'
+        }
+        penalties.push(`- Job Stability Check: Deduct 1-5 points if >${thresholds[sensitivity]} of positions are short tenure (<1.5 years)`)
+      }
+      
+      if (request.penaltyConfig.employmentGaps?.enabled) {
+        const threshold = request.penaltyConfig.employmentGaps.threshold
+        penalties.push(`- Employment Gaps: Deduct 1-3 points for unexplained gaps >${threshold} (excluding education, family reasons, sabbaticals)`)
+      }
+      
+      if (penalties.length > 0) {
+        penaltySection = `\nRISK PENALTIES (0-20 points deduction):\n${penalties.join('\n')}`
+      }
+    }
+
+    const hasAdvancedScoring = bonusSection || penaltySection
+
+    return `Please analyze this resume against the specified role requirements and provide a structured evaluation using ${hasAdvancedScoring ? 'ADVANCED' : 'BASIC'} scoring methodology.
+
+${hasAdvancedScoring ? `
+ADVANCED SCORING FORMULA:
+Base Score (0-70) + Bonuses (0-30) - Penalties (0-20) = Final Score (0-100)
+
+BASE SCORING (0-70 points):
+- Skills Match (0-40 points): Weighted evaluation of required and desired skills
+- Questions Score (0-20 points): Assessment of role-specific questions  
+- Overall Relevance (0-10 points): General resume relevance to role
+` : `
+BASIC SCORING (0-100 points):
+Standard skills and questions evaluation with overall assessment.
+`}
 
 ROLE REQUIREMENTS:
 
@@ -196,14 +297,17 @@ Skills Required:
 ${skillsList}
 
 Evaluation Questions:
-${questionsList}
+${questionsList}${bonusSection}${penaltySection}
 
 RESUME TEXT:
 ${request.extractedText}
 
 Please provide your analysis in the following JSON format:
 {
-  "overallScore": [0-100 integer score],
+  "overallScore": [0-100 integer score${hasAdvancedScoring ? ' using advanced formula' : ''}],
+  ${hasAdvancedScoring ? `"baseScore": [0-70 base score before bonuses/penalties],
+  "bonusPoints": [0-30 total bonus points awarded],
+  "penaltyPoints": [0-20 total penalty points deducted],` : ''}
   "skillsAnalysis": [
     {
       "skillName": "[exact skill name from requirements]",
@@ -221,13 +325,23 @@ Please provide your analysis in the following JSON format:
       "confidence": [0-100],
       "weight": [weight from requirements]
     }
-  ],
+  ],${hasAdvancedScoring ? `
+  "bonusAnalysis": {
+    "education": [0-5 points if enabled],
+    "companies": [0-6 points if enabled], 
+    "projects": [0-10 points if enabled],
+    "certifications": [0-10 points if enabled]
+  },
+  "penaltyAnalysis": {
+    "jobStability": [0-5 points deducted if enabled],
+    "employmentGaps": [0-3 points deducted if enabled]
+  },` : ''}
   "summary": "[2-3 sentence overall assessment]",
   "recommendations": ["specific recommendations for this candidate"],
   "redFlags": ["any concerns or missing critical elements"]
 }
 
-Ensure your response is valid JSON only, no additional text.`
+${hasAdvancedScoring ? 'Use the advanced scoring system to provide nuanced evaluation with bonus/penalty breakdown.' : ''} Ensure your response is valid JSON only, no additional text.`
   }
 
   /**
